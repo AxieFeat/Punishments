@@ -1,0 +1,25 @@
+plugins {
+    id("punishments.service")
+}
+
+dependencies {
+    implementation(projects.common)
+    implementation(projects.clientCommon)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.core)
+
+    // Logging
+    implementation(libs.logback)
+    implementation(libs.slf4j)
+
+    // gRPC (for channel transport)
+    implementation(libs.grpc.okhttp)
+
+    // CLI args parsing
+    implementation(libs.kotlinx.serialization.json)
+}
+
+application {
+    mainClass.set("puhishments.StressTestMainKt")
+}
