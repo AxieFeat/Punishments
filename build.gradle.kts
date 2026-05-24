@@ -1,5 +1,6 @@
 plugins {
     id("punishments.base")
+    id("punishments.detekt")
 }
 
 allprojects {

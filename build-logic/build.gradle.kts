@@ -8,6 +8,7 @@ dependencies {
     implementation(libs.plugin.kotlin.serialization)
     implementation(libs.plugin.shadow)
     implementation(libs.plugin.protobuf)
+    implementation(libs.plugin.detekt)
 }
 
 kotlin {

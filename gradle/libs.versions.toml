@@ -20,9 +20,11 @@ grpc = "1.81.0"
 grpc-kotlin = "1.5.0"
 protobuf = "4.35.0"
 slf4j = "2.0.18"
+hocon-config = "1.4.3"
 
 shadow = "9.4.1"
 protobuf-plugin = "0.10.0"
+detekt = "1.23.8"
 
 [libraries]
 
@@ -72,8 +74,12 @@ protobuf-kotlin = { group = "com.google.protobuf", name = "protobuf-kotlin", ver
 protobuf-java-util = { group = "com.google.protobuf", name = "protobuf-java-util", version.ref = "protobuf" }
 annotations-api = { group = "org.apache.tomcat", name = "annotations-api", version = "6.0.53" }
 
+# Configuration
+hocon = { group = "com.typesafe", name = "config", version.ref = "hocon-config" }
+
 # Plugins (for build-logic)
 plugin-kotlin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 plugin-kotlin-serialization = { group = "org.jetbrains.kotlin", name = "kotlin-serialization", version.ref = "kotlin" }
 plugin-shadow = { group = "com.gradleup.shadow", name = "shadow-gradle-plugin", version.ref = "shadow" }
 plugin-protobuf = { group = "com.google.protobuf", name = "protobuf-gradle-plugin", version.ref = "protobuf-plugin" }
+plugin-detekt = { group = "io.gitlab.arturbosch.detekt", name = "detekt-gradle-plugin", version.ref = "detekt" }

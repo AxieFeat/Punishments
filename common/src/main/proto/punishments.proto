@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package punishments;
+
+option java_package = "punishments.common.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "Punishments";
+
+// ─── Service ─────────────────────────────────────────────────────
+
+service PunishmentService {
+  rpc CreatePunishment (CreatePunishmentProto) returns (CreatePunishmentResultProto);
+  rpc RevokePunishment (RevokePunishmentProto) returns (RevokePunishmentResultProto);
+  rpc GetPunishment (GetPunishmentProto) returns (PunishmentResponseProto);
+  rpc GetPunishments (GetPunishmentsProto) returns (PaginatedPunishmentsProto);
+  rpc GetTargetPunishments (GetTargetPunishmentsProto) returns (PaginatedPunishmentsProto);
+  rpc SearchPunishments (SearchPunishmentsProto) returns (PaginatedPunishmentsProto);
+  rpc GetCatalog (GetCatalogProto) returns (ReasonCatalogProto);
+}
+
+// ─── Requests ────────────────────────────────────────────────────
+
+message CreatePunishmentProto {
+  string type = 1; // BAN | MUTE | WARN
+  TargetSelectionProto selection = 2;
+  PunishmentScopeProto scope = 3;
+  optional string reason_id = 4;
+  optional string reason_text = 5;
+  optional int64 duration_seconds = 6;
+  PunishmentActorProto issuer = 7;
+  optional int64 issued_at_epoch_ms = 8;
+}
+
+message RevokePunishmentProto {
+  string punishment_id = 1;
+  optional string reason = 2;
+  PunishmentActorProto actor = 3;
+}
+
+message GetPunishmentProto {
+  string punishment_id = 1;
+}
+
+message GetPunishmentsProto {
+  repeated PunishmentTargetProto targets = 1;
+  optional string type = 2;   // PunishmentType name
+  optional string status = 3; // PunishmentStatus name
+  optional string sort = 4;   // PunishmentSort name
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message GetTargetPunishmentsProto {
+  repeated PunishmentTargetProto targets = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message SearchPunishmentsProto {
+  string query = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetCatalogProto {
+  optional string version = 1;
+}
+
+// ─── Responses ───────────────────────────────────────────────────
+
+message CreatePunishmentResultProto {
+  bool success = 1;
+  repeated string created_ids = 2;
+  string error_code = 3;
+  string message = 4;
+}
+
+message RevokePunishmentResultProto {
+  bool success = 1;
+  string error_code = 2;
+  string message = 3;
+}
+
+message PunishmentResponseProto {
+  bool found = 1;
+  string id = 2;
+  string type = 3;
+  string status = 4;
+  repeated PunishmentTargetProto targets = 5;
+  PunishmentScopeProto scope = 6;
+  optional string reason_id = 7;
+  optional string reason_text = 8;
+  PunishmentActorProto issued_by = 9;
+  int64 issued_at_epoch_ms = 10;
+  optional int64 expires_at_epoch_ms = 11;
+  optional int64 revoked_at_epoch_ms = 12;
+  optional PunishmentActorProto revoked_by = 13;
+}
+
+message PunishmentSummaryProto {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  repeated PunishmentTargetProto targets = 4;
+  optional string reason_id = 5;
+  int64 issued_at_epoch_ms = 6;
+  optional int64 expires_at_epoch_ms = 7;
+}
+
+message PaginatedPunishmentsProto {
+  repeated PunishmentSummaryProto items = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 total_items = 4;
+  int32 total_pages = 5;
+}
+
+// ─── Catalog ─────────────────────────────────────────────────────
+
+message PunishmentReasonProto {
+  string id = 1;
+  string title = 2;
+  optional string description = 3;
+  optional string category = 4;
+  optional int64 recommended_duration_seconds = 5;
+  repeated string recommended_scope_keys = 6;
+}
+
+message PunishmentCapabilityProto {
+  string key = 1;
+  string title = 2;
+  optional string description = 3;
+  repeated string applies_to = 4; // PunishmentType names
+}
+
+message ReasonCatalogProto {
+  repeated PunishmentReasonProto reasons = 1;
+  repeated PunishmentCapabilityProto capabilities = 2;
+  optional string version = 3;
+}
+
+// ─── Shared Models ───────────────────────────────────────────────
+
+message PunishmentTargetProto {
+  string id = 1;
+  string name = 2;
+  string kind = 3; // PLAYER | ENTITY | UNKNOWN
+}
+
+message TargetSelectionProto {
+  optional string selector = 1;
+  repeated PunishmentTargetProto targets = 2;
+}
+
+message PunishmentScopeProto {
+  repeated string restriction_keys = 1;
+}
+
+message PunishmentActorProto {
+  string id = 1;
+  string name = 2;
+  string source = 3; // STAFF | CONSOLE | SYSTEM
+}
+
+
