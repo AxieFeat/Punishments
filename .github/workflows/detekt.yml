@@ -16,6 +16,8 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
       - name: Validate Gradle Wrapper
         run: ./gradlew --version
       - name: Detekt
