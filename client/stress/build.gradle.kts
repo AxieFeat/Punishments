@@ -21,5 +21,5 @@ dependencies {
 }
 
 application {
-    mainClass.set("puhishments.StressTestMainKt")
+    mainClass.set("punishments.client.stress.StressTestMainKt")
 }

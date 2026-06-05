@@ -1,0 +1,5 @@
+services:
+  punishments-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.fast

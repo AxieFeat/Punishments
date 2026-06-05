@@ -1,6 +1,7 @@
 package punishments.common.event
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
@@ -23,6 +24,7 @@ sealed class PunishmentEvent {
         override val metadata: EventMetadata,
         @Serializable(with = UUIDSerializer::class)
         val punishmentId: UUID,
+        @SerialName("punishmentType")
         val type: PunishmentType,
         val selection: TargetSelection,
         val reasonId: String? = null,

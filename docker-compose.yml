@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: punishments-postgres
+    environment:
+      POSTGRES_DB: punishments
+      POSTGRES_USER: punishments
+      POSTGRES_PASSWORD: punishments
+    ports:
+      - "5432:5432"
+    volumes:
+      - punishments-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U punishments -d punishments"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - punishments
+
+  redis:
+    image: redis:7-alpine
+    container_name: punishments-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - punishments-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - punishments
+
+  punishments-service:
+    image: punishments-service:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: punishments-service
+    environment:
+      DB_PRIMARY_URL: jdbc:postgresql://postgres:5432/punishments
+      DB_USERNAME: punishments
+      DB_PASSWORD: punishments
+      REDIS_NODES: redis://redis:6379
+      HTTP_PORT: "8080"
+      GRPC_PORT: "9090"
+      INSTANCE_ID: punishments-service
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - punishments
+
+volumes:
+  punishments-postgres-data:
+  punishments-redis-data:
+
+networks:
+  punishments:
+    name: punishments
