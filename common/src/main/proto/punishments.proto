@@ -11,7 +11,7 @@ option java_outer_classname = "Punishments";
 service PunishmentService {
   rpc CreatePunishment (CreatePunishmentProto) returns (CreatePunishmentResultProto);
   rpc RevokePunishment (RevokePunishmentProto) returns (RevokePunishmentResultProto);
-  rpc GetPunishment (GetPunishmentProto) returns (PunishmentResponseProto);
+  rpc GetPunishmentDetails (GetPunishmentDetailsProto) returns (PunishmentResponseProto);
   rpc GetPunishments (GetPunishmentsProto) returns (PaginatedPunishmentsProto);
   rpc GetTargetPunishments (GetTargetPunishmentsProto) returns (PaginatedPunishmentsProto);
   rpc SearchPunishments (SearchPunishmentsProto) returns (PaginatedPunishmentsProto);
@@ -37,7 +37,7 @@ message RevokePunishmentProto {
   PunishmentActorProto actor = 3;
 }
 
-message GetPunishmentProto {
+message GetPunishmentDetailsProto {
   string punishment_id = 1;
 }
 
@@ -103,8 +103,9 @@ message PunishmentSummaryProto {
   string status = 3;
   repeated PunishmentTargetProto targets = 4;
   optional string reason_id = 5;
-  int64 issued_at_epoch_ms = 6;
-  optional int64 expires_at_epoch_ms = 7;
+  optional string reason_text = 6;
+  int64 issued_at_epoch_ms = 7;
+  optional int64 expires_at_epoch_ms = 8;
 }
 
 message PaginatedPunishmentsProto {
@@ -144,7 +145,7 @@ message ReasonCatalogProto {
 message PunishmentTargetProto {
   string id = 1;
   string name = 2;
-  string kind = 3; // PLAYER | ENTITY | UNKNOWN
+  string kind = 3; // PLAYER | UNKNOWN
 }
 
 message TargetSelectionProto {

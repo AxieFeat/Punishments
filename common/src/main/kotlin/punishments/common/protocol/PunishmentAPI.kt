@@ -2,7 +2,7 @@ package punishments.common.protocol
 
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -22,7 +22,7 @@ interface PunishmentAPI {
 
     suspend fun createPunishment(request: CreatePunishmentRequest): CreatePunishmentResult
     suspend fun revokePunishment(request: RevokePunishmentRequest): RevokePunishmentResult
-    suspend fun getPunishment(request: GetPunishmentRequest): PunishmentResponse?
+    suspend fun getPunishmentDetails(request: GetPunishmentDetailsRequest): PunishmentResponse?
     suspend fun getPunishments(request: GetPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse>
     suspend fun getTargetPunishments(request: GetTargetPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse>
     suspend fun searchPunishments(request: SearchPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse>

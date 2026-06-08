@@ -1,11 +1,9 @@
 package punishments.service.domain.service
 
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -129,7 +127,7 @@ class PunishmentDomainService(
         }
     }
 
-    override suspend fun getPunishment(request: GetPunishmentRequest): PunishmentResponse? {
+    override suspend fun getPunishmentDetails(request: GetPunishmentDetailsRequest): PunishmentResponse? {
         expirationService.processExpired()
         val cacheKey = CacheKeys.punishment(request.punishmentId.toString())
         cache.get(cacheKey)?.let { cached ->

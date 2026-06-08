@@ -8,7 +8,7 @@ import punishments.client.stress.logging.FailureDebugLogger
 import punishments.client.stress.metrics.MetricsCollector
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -109,7 +109,7 @@ class VirtualModerator(
 
     private suspend fun viewPunishment() {
         val summary = sharedState.randomPunishment() ?: return
-        val (response, latency) = timed { api.getPunishment(GetPunishmentRequest(summary.id)) }
+        val (response, latency) = timed { api.getPunishmentDetails(GetPunishmentDetailsRequest(summary.id)) }
         metrics.record("view_punishment", response != null, latency)
         if (response == null) {
             sharedState.removePunishment(summary.id)

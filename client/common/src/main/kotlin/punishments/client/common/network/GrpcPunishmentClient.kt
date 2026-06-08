@@ -15,7 +15,7 @@ import punishments.client.common.network.mapper.ProtoClientMapper.toDomain
 import punishments.client.common.network.mapper.ProtoClientMapper.toProto
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -27,8 +27,11 @@ import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
 import punishments.common.grpc.PunishmentServiceGrpcKt
+import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentType
 import punishments.common.protocol.PunishmentAPI
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 class GrpcPunishmentClient(
     private val config: GrpcClientConfig,
@@ -42,30 +45,62 @@ class GrpcPunishmentClient(
         channel.connect()
     }
 
+    /**
+     * Creates a new punishment based on the provided request.
+     *
+     * See [CreatePunishmentRequest] for details about the request parameters.
+     */
     override suspend fun createPunishment(request: CreatePunishmentRequest): CreatePunishmentResult = retrying("createPunishment") {
         createStub().createPunishment(request.toProto()).toDomain()
     }
 
+    /**
+     * Revokes an existing punishment based on the provided request.
+     *
+     * See [RevokePunishmentRequest] for details about the request parameters.
+     */
     override suspend fun revokePunishment(request: RevokePunishmentRequest): RevokePunishmentResult = retrying("revokePunishment") {
         createStub().revokePunishment(request.toProto()).toDomain()
     }
 
-    override suspend fun getPunishment(request: GetPunishmentRequest): PunishmentResponse? = retrying("getPunishment") {
-        createStub().getPunishment(request.toProto()).toDomain()
+    /**
+     * Gets detailed information about a specific punishment by its ID.
+     * Returns null if no punishment with the given ID exists.
+     *
+     * See [GetPunishmentDetailsRequest] for details about the request parameters.
+     */
+    override suspend fun getPunishmentDetails(request: GetPunishmentDetailsRequest): PunishmentResponse? = retrying("getPunishmentDetails") {
+        createStub().getPunishmentDetails(request.toProto()).toDomain()
     }
 
+    /**
+     * Gets a paginated list of punishments based on the provided request parameters, which filtered by [PunishmentType] and [PunishmentStatus].
+     *
+     * See [GetPunishmentsRequest] for details about the request parameters.
+     */
     override suspend fun getPunishments(request: GetPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse> = retrying("getPunishments") {
         createStub().getPunishments(request.toProto()).toDomain()
     }
 
+    /**
+     * Gets a paginated list of punishments for a specific target based on the provided request parameters.
+     *
+     * See [GetTargetPunishmentsRequest] for details about the request parameters.
+     */
     override suspend fun getTargetPunishments(request: GetTargetPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse> = retrying("getTargetPunishments") {
         createStub().getTargetPunishments(request.toProto()).toDomain()
     }
 
+    /**
+     *
+     */
     override suspend fun searchPunishments(request: SearchPunishmentsRequest): PaginatedResponse<PunishmentSummaryResponse> = retrying("searchPunishments") {
         createStub().searchPunishments(request.toProto()).toDomain()
     }
 
+    /**
+     *
+     */
     override suspend fun getCatalog(request: GetCatalogRequest): ReasonCatalogResponse = retrying("getCatalog") {
         createStub().getCatalog(request.toProto()).toDomain()
     }
@@ -119,7 +154,7 @@ class GrpcPunishmentClient(
                     delayMs,
                     e.status.code
                 )
-                delay(delayMs)
+                delay(delayMs.milliseconds)
             }
         }
 

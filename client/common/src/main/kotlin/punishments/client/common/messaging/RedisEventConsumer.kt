@@ -20,6 +20,7 @@ import punishments.client.common.config.ClientConfig
 import punishments.common.event.PunishmentEvent
 import punishments.common.serialization.CommonSerializersModule
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 class RedisEventConsumer(
     private val config: ClientConfig,
@@ -66,7 +67,7 @@ class RedisEventConsumer(
                     throw e
                 } catch (e: Exception) {
                     logger.warn("Redis consumer error, reconnecting in 3s", e)
-                    delay(3_000)
+                    delay(3_000.milliseconds)
                 }
             }
         }

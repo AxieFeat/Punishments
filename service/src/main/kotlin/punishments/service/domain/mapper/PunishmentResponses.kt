@@ -28,6 +28,7 @@ fun PunishmentRecord.toSummary(): PunishmentSummaryResponse {
         status = status,
         targets = targets,
         reasonId = reasonId,
+        reasonText = reasonText,
         issuedAt = issuedAt,
         expiresAt = expiresAt
     )

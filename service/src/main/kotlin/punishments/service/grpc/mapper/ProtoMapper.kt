@@ -3,7 +3,7 @@ package punishments.service.grpc.mapper
 import io.grpc.Status
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -19,7 +19,7 @@ import punishments.common.error.PunishmentException
 import punishments.common.grpc.CreatePunishmentProto
 import punishments.common.grpc.CreatePunishmentResultProto
 import punishments.common.grpc.GetCatalogProto
-import punishments.common.grpc.GetPunishmentProto
+import punishments.common.grpc.GetPunishmentDetailsProto
 import punishments.common.grpc.GetPunishmentsProto
 import punishments.common.grpc.GetTargetPunishmentsProto
 import punishments.common.grpc.PaginatedPunishmentsProto
@@ -83,8 +83,8 @@ object ProtoMapper {
         )
     }
 
-    fun GetPunishmentProto.toDomain(): GetPunishmentRequest {
-        return GetPunishmentRequest(UUID.fromString(punishmentId))
+    fun GetPunishmentDetailsProto.toDomain(): GetPunishmentDetailsRequest {
+        return GetPunishmentDetailsRequest(UUID.fromString(punishmentId))
     }
 
     fun GetPunishmentsProto.toDomain(): GetPunishmentsRequest {
@@ -253,6 +253,7 @@ object ProtoMapper {
             status = this@toProto.status.name
             targets.addAll(this@toProto.targets.map { target -> target.toProto() })
             this@toProto.reasonId?.let { reasonId = it }
+            this@toProto.reasonText?.let { reasonText = it }
             issuedAtEpochMs = this@toProto.issuedAt.toEpochMilliseconds()
             this@toProto.expiresAt?.let { expiresAtEpochMs = it.toEpochMilliseconds() }
         }

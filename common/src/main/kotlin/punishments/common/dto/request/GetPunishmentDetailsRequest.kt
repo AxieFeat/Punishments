@@ -8,7 +8,7 @@ import java.util.UUID
  * Request to fetch a punishment by id.
  */
 @Serializable
-data class GetPunishmentRequest(
+data class GetPunishmentDetailsRequest(
     @Serializable(with = UUIDSerializer::class)
     val punishmentId: UUID
 )

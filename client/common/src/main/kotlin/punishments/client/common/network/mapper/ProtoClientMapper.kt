@@ -2,7 +2,7 @@ package punishments.client.common.network.mapper
 
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
-import punishments.common.dto.request.GetPunishmentRequest
+import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.dto.request.GetTargetPunishmentsRequest
 import punishments.common.dto.request.RevokePunishmentRequest
@@ -17,7 +17,7 @@ import punishments.common.error.ErrorCode
 import punishments.common.grpc.CreatePunishmentProto
 import punishments.common.grpc.CreatePunishmentResultProto
 import punishments.common.grpc.GetCatalogProto
-import punishments.common.grpc.GetPunishmentProto
+import punishments.common.grpc.GetPunishmentDetailsProto
 import punishments.common.grpc.GetPunishmentsProto
 import punishments.common.grpc.GetTargetPunishmentsProto
 import punishments.common.grpc.PaginatedPunishmentsProto
@@ -35,7 +35,7 @@ import punishments.common.grpc.SearchPunishmentsProto
 import punishments.common.grpc.TargetSelectionProto
 import punishments.common.grpc.createPunishmentProto
 import punishments.common.grpc.getCatalogProto
-import punishments.common.grpc.getPunishmentProto
+import punishments.common.grpc.getPunishmentDetailsProto
 import punishments.common.grpc.getPunishmentsProto
 import punishments.common.grpc.getTargetPunishmentsProto
 import punishments.common.grpc.punishmentActorProto
@@ -49,7 +49,6 @@ import punishments.common.model.PunishmentCapability
 import punishments.common.model.PunishmentCatalog
 import punishments.common.model.PunishmentReason
 import punishments.common.model.PunishmentScope
-import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
@@ -77,7 +76,7 @@ object ProtoClientMapper {
         actor = this@toProto.actor.toProto()
     }
 
-    fun GetPunishmentRequest.toProto(): GetPunishmentProto = getPunishmentProto {
+    fun GetPunishmentDetailsRequest.toProto(): GetPunishmentDetailsProto = getPunishmentDetailsProto {
         punishmentId = this@toProto.punishmentId.toString()
     }
 

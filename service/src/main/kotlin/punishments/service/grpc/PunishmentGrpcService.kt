@@ -7,7 +7,7 @@ import punishments.common.error.PunishmentException
 import punishments.common.grpc.CreatePunishmentProto
 import punishments.common.grpc.CreatePunishmentResultProto
 import punishments.common.grpc.GetCatalogProto
-import punishments.common.grpc.GetPunishmentProto
+import punishments.common.grpc.GetPunishmentDetailsProto
 import punishments.common.grpc.GetPunishmentsProto
 import punishments.common.grpc.GetTargetPunishmentsProto
 import punishments.common.grpc.PaginatedPunishmentsProto
@@ -40,9 +40,9 @@ class PunishmentGrpcService(
         }
     }
 
-    override suspend fun getPunishment(request: GetPunishmentProto): PunishmentResponseProto {
-        return handle("GetPunishment") {
-            api.getPunishment(request.toDomain()).toProto()
+    override suspend fun getPunishmentDetails(request: GetPunishmentDetailsProto): PunishmentResponseProto {
+        return handle("GetPunishmentDetails") {
+            api.getPunishmentDetails(request.toDomain()).toProto()
         }
     }
 
@@ -70,7 +70,7 @@ class PunishmentGrpcService(
         }
     }
 
-    private suspend inline fun <T> handle(method: String, block: () -> T): T {
+    private inline fun <T> handle(method: String, block: () -> T): T {
         return try {
             block()
         } catch (e: PunishmentException) {

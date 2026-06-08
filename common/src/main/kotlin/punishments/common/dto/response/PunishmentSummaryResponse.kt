@@ -19,6 +19,7 @@ data class PunishmentSummaryResponse(
     val status: PunishmentStatus,
     val targets: List<PunishmentTarget>,
     val reasonId: String? = null,
+    val reasonText: String? = null,
     val issuedAt: ContextualInstant,
     val expiresAt: ContextualInstant? = null
 )
