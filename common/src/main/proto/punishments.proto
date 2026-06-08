@@ -145,7 +145,7 @@ message ReasonCatalogProto {
 message PunishmentTargetProto {
   string id = 1;
   string name = 2;
-  string kind = 3; // PLAYER | UNKNOWN
+  string kind = 3;
 }
 
 message TargetSelectionProto {
@@ -160,7 +160,7 @@ message PunishmentScopeProto {
 message PunishmentActorProto {
   string id = 1;
   string name = 2;
-  string source = 3; // STAFF | CONSOLE | SYSTEM
+  string source = 3;
 }
 
 

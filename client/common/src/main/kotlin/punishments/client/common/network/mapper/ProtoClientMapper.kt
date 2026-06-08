@@ -1,5 +1,6 @@
 package punishments.client.common.network.mapper
 
+import punishments.common.dto.ActorDto
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
@@ -218,7 +219,7 @@ object ProtoClientMapper {
         return PunishmentTarget(
             id = id.uuidOrNull(),
             name = name.takeIf(String::isNotBlank),
-            kind = optionalEnum<TargetKind>(kind.isNotBlank(), kind) ?: TargetKind.UNKNOWN
+            kind = if(kind.isNotBlank()) ActorDto(kind) else TargetKind.UNKNOWN
         )
     }
 
@@ -230,7 +231,7 @@ object ProtoClientMapper {
         return PunishmentActor(
             id = id.uuidOrNull(),
             name = name,
-            source = optionalEnum<ActorSource>(source.isNotBlank(), source) ?: ActorSource.STAFF
+            source = if(source.isNotBlank()) ActorDto(source) else ActorSource.SYSTEM
         )
     }
 

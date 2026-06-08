@@ -21,5 +21,5 @@ data class PunishmentTarget(
     @Serializable(with = UUIDSerializer::class)
     val id: UUID? = null,
     val name: String? = null,
-    val kind: TargetKind = TargetKind.PLAYER
+    val kind: Actor = TargetKind.PLAYER
 )

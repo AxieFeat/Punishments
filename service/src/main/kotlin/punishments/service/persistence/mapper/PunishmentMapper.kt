@@ -8,7 +8,7 @@ import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetKind
+import punishments.common.dto.ActorDto
 import punishments.service.persistence.table.PunishmentsTable
 import kotlin.time.Instant
 
@@ -30,7 +30,7 @@ object PunishmentMapper {
             issuedBy = PunishmentActor(
                 id = row[PunishmentsTable.issuedById],
                 name = row[PunishmentsTable.issuedByName],
-                source = ActorSource.valueOf(row[PunishmentsTable.issuedBySource])
+                source = ActorDto(row[PunishmentsTable.issuedBySource])
             ),
             issuedAt = row[PunishmentsTable.issuedAtEpochMs].toInstant(),
             expiresAt = row[PunishmentsTable.expiresAtEpochMs]?.toInstant(),
@@ -44,7 +44,7 @@ object PunishmentMapper {
         return PunishmentActor(
             id = row[PunishmentsTable.revokedById],
             name = name,
-            source = ActorSource.valueOf(row[PunishmentsTable.revokedBySource] ?: ActorSource.SYSTEM.name)
+            source = ActorDto(row[PunishmentsTable.revokedBySource] ?: ActorSource.SYSTEM.name)
         )
     }
 
