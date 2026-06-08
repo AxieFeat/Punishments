@@ -2,8 +2,7 @@ package punishments.common.dto.response
 
 import kotlinx.serialization.Serializable
 import punishments.common.error.ErrorCode
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Result of a create punishment command.
@@ -13,7 +12,7 @@ sealed class CreatePunishmentResult {
 
     @Serializable
     data class Success(
-        val createdIds: List<@Serializable(with = UUIDSerializer::class) UUID>,
+        val createdIds: List<ContextualUUID>,
         val message: String = "Punishment created"
     ) : CreatePunishmentResult()
 

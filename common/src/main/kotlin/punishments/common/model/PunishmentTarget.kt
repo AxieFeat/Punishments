@@ -1,8 +1,8 @@
 package punishments.common.model
 
 import kotlinx.serialization.Serializable
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualActor
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Concrete target resolved from command selection.
@@ -18,8 +18,7 @@ import java.util.UUID
  */
 @Serializable
 data class PunishmentTarget(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID? = null,
+    val id: ContextualUUID? = null,
     val name: String? = null,
-    val kind: Actor = TargetKind.PLAYER
+    val kind: ContextualActor = TargetKind.PLAYER
 )

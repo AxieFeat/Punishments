@@ -2,8 +2,7 @@ package punishments.common.dto.request
 
 import kotlinx.serialization.Serializable
 import punishments.common.model.PunishmentActor
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Request to revoke an active punishment.
@@ -14,8 +13,7 @@ import java.util.UUID
  */
 @Serializable
 data class RevokePunishmentRequest(
-    @Serializable(with = UUIDSerializer::class)
-    val punishmentId: UUID,
+    val punishmentId: ContextualUUID,
     val reason: String? = null,
     val actor: PunishmentActor
 )

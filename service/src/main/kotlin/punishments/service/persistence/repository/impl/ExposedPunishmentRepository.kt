@@ -19,6 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import punishments.common.dto.ActorDto
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentHistoryEntry
 import punishments.common.model.PunishmentHistoryType
@@ -28,7 +29,6 @@ import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetKind
 import punishments.common.model.TargetSelection
 import punishments.service.persistence.DatabaseManager
 import punishments.service.persistence.mapper.PunishmentMapper
@@ -244,7 +244,7 @@ class ExposedPunishmentRepository(
                 PunishmentTarget(
                     id = targetRow[PunishmentTargetsTable.targetId],
                     name = targetRow[PunishmentTargetsTable.targetName],
-                    kind = TargetKind.valueOf(targetRow[PunishmentTargetsTable.targetKind])
+                    kind = ActorDto(targetRow[PunishmentTargetsTable.targetKind])
                 )
             }
         val scope = PunishmentScope(

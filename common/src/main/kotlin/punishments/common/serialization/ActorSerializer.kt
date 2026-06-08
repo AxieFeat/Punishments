@@ -6,21 +6,22 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+import punishments.common.dto.ActorDto
+import punishments.common.model.Actor
 
 /**
  * Serializes Kotlin durations as seconds.
  */
-object DurationSerializer : KSerializer<Duration> {
-    override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("Duration", PrimitiveKind.LONG)
+object ActorSerializer : KSerializer<Actor> {
 
-    override fun serialize(encoder: Encoder, value: Duration) {
-        encoder.encodeLong(value.inWholeSeconds)
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("Actor", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: Actor) {
+        encoder.encodeString(value.name)
     }
 
-    override fun deserialize(decoder: Decoder): Duration {
-        return decoder.decodeLong().seconds
+    override fun deserialize(decoder: Decoder): Actor {
+        return ActorDto(decoder.decodeString())
     }
 }

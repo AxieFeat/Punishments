@@ -2,7 +2,7 @@ package punishments.common.event
 
 import kotlinx.serialization.Serializable
 import punishments.common.serialization.ContextualInstant
-import punishments.common.serialization.UUIDSerializer
+import punishments.common.serialization.ContextualUUID
 import java.util.UUID
 import kotlin.time.Instant
 
@@ -11,8 +11,7 @@ import kotlin.time.Instant
  */
 @Serializable
 data class EventMetadata(
-    @Serializable(with = UUIDSerializer::class)
-    val eventId: UUID = UUID.randomUUID(),
+    val eventId: ContextualUUID = UUID.randomUUID(),
     val timestamp: ContextualInstant = Instant.fromEpochMilliseconds(System.currentTimeMillis()),
     val sourceServer: String = "unknown"
 )

@@ -2,7 +2,7 @@ package punishments.common.model
 
 import kotlinx.serialization.Serializable
 import punishments.common.serialization.ContextualInstant
-import punishments.common.serialization.UUIDSerializer
+import punishments.common.serialization.ContextualUUID
 import java.util.UUID
 
 /**
@@ -10,10 +10,8 @@ import java.util.UUID
  */
 @Serializable
 data class PunishmentHistoryEntry(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID = UUID.randomUUID(),
-    @Serializable(with = UUIDSerializer::class)
-    val punishmentId: UUID,
+    val id: ContextualUUID = UUID.randomUUID(),
+    val punishmentId: ContextualUUID,
     val type: PunishmentHistoryType,
     val actor: PunishmentActor? = null,
     val note: String? = null,

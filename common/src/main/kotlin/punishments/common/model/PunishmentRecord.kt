@@ -2,16 +2,14 @@ package punishments.common.model
 
 import kotlinx.serialization.Serializable
 import punishments.common.serialization.ContextualInstant
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Stored representation of a punishment with lifecycle timestamps.
  */
 @Serializable
 data class PunishmentRecord(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID,
+    val id: ContextualUUID,
     val type: PunishmentType,
     val status: PunishmentStatus,
     val targets: List<PunishmentTarget>,

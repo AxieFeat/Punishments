@@ -1,8 +1,8 @@
 package punishments.common.model
 
 import kotlinx.serialization.Serializable
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualActor
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Represents the actor who issued or revoked a punishment.
@@ -13,8 +13,7 @@ import java.util.UUID
  */
 @Serializable
 data class PunishmentActor(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID? = null,
+    val id: ContextualUUID? = null,
     val name: String,
-    val source: Actor = ActorSource.STAFF
+    val source: ContextualActor = ActorSource.STAFF
 )

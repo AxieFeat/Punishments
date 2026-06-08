@@ -2,6 +2,8 @@ package punishments.common.serialization
 
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
+import punishments.common.model.Actor
+import java.util.UUID
 import kotlin.time.Instant
 
 /**
@@ -9,4 +11,6 @@ import kotlin.time.Instant
  */
 val CommonSerializersModule: SerializersModule = SerializersModule {
     contextual(Instant::class, InstantSerializer)
+    contextual(UUID::class, UUIDSerializer)
+    contextual(Actor::class, ActorSerializer)
 }

@@ -7,16 +7,14 @@ import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.serialization.ContextualInstant
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Detailed representation of a punishment for read endpoints.
  */
 @Serializable
 data class PunishmentResponse(
-    @Serializable(with = UUIDSerializer::class)
-    val id: UUID,
+    val id: ContextualUUID,
     val type: PunishmentType,
     val status: PunishmentStatus,
     val targets: List<PunishmentTarget>,

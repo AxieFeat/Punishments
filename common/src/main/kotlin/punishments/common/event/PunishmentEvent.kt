@@ -5,8 +5,7 @@ import kotlinx.serialization.SerialName
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
-import punishments.common.serialization.UUIDSerializer
-import java.util.UUID
+import punishments.common.serialization.ContextualUUID
 
 /**
  * Domain events emitted by the punishment service.
@@ -22,8 +21,7 @@ sealed class PunishmentEvent {
     @Serializable
     data class PunishmentCreated(
         override val metadata: EventMetadata,
-        @Serializable(with = UUIDSerializer::class)
-        val punishmentId: UUID,
+        val punishmentId: ContextualUUID,
         @SerialName("punishmentType")
         val type: PunishmentType,
         val selection: TargetSelection,
@@ -37,8 +35,7 @@ sealed class PunishmentEvent {
     @Serializable
     data class PunishmentRevoked(
         override val metadata: EventMetadata,
-        @Serializable(with = UUIDSerializer::class)
-        val punishmentId: UUID,
+        val punishmentId: ContextualUUID,
         val actor: PunishmentActor,
         val reason: String? = null
     ) : PunishmentEvent()
@@ -49,7 +46,6 @@ sealed class PunishmentEvent {
     @Serializable
     data class PunishmentExpired(
         override val metadata: EventMetadata,
-        @Serializable(with = UUIDSerializer::class)
-        val punishmentId: UUID
+        val punishmentId: ContextualUUID
     ) : PunishmentEvent()
 }
