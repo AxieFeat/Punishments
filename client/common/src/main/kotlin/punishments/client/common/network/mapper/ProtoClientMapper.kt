@@ -210,6 +210,7 @@ object ProtoClientMapper {
             status = PunishmentStatus.valueOf(status),
             targets = targetsList.map { target -> target.toDomain() },
             reasonId = optionalString(hasReasonId(), reasonId),
+            reasonText = optionalString(hasReasonText(), reasonText),
             issuedAt = Instant.fromEpochMilliseconds(issuedAtEpochMs),
             expiresAt = if (hasExpiresAtEpochMs()) Instant.fromEpochMilliseconds(expiresAtEpochMs) else null
         )
