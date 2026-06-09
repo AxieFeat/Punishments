@@ -131,7 +131,12 @@ class VirtualModerator(
         }
         val type = when (behavior) {
             BehaviorType.OBSERVER -> PunishmentType.WARN
-            BehaviorType.MODERATOR -> listOf(PunishmentType.MUTE, PunishmentType.BAN, PunishmentType.WARN).random()
+            BehaviorType.MODERATOR -> listOf(
+                PunishmentType.MUTE,
+                PunishmentType.BAN,
+                PunishmentType.WARN,
+                PunishmentType.KICK
+            ).random()
             BehaviorType.AUDITOR -> PunishmentType.WARN
             BehaviorType.CHAOTIC -> PunishmentType.entries.random()
             BehaviorType.AFK -> PunishmentType.WARN
@@ -302,6 +307,10 @@ class VirtualModerator(
     }
 
     private fun resolveScope(type: PunishmentType, reasonId: String?): PunishmentScope {
+        if (type == PunishmentType.KICK) {
+            return PunishmentScope()
+        }
+
         if (reasonId != null) {
             return PunishmentScope(sharedState.recommendedScopeKeys(reasonId))
         }

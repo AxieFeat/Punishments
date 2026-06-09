@@ -21,7 +21,7 @@ service PunishmentService {
 // ─── Requests ────────────────────────────────────────────────────
 
 message CreatePunishmentProto {
-  string type = 1; // BAN | MUTE | WARN
+  string type = 1; // BAN | MUTE | WARN | KICK
   TargetSelectionProto selection = 2;
   PunishmentScopeProto scope = 3;
   optional string reason_id = 4;

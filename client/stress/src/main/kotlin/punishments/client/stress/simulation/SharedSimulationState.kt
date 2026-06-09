@@ -133,6 +133,10 @@ class SharedSimulationState(
 
     fun compatibleReasonIds(type: PunishmentType): List<String> {
         val snapshot = catalog ?: return emptyList()
+        if (type == PunishmentType.KICK) {
+            return snapshot.reasons.map(PunishmentReason::id)
+        }
+
         return snapshot.reasons
             .filter { reason -> isReasonCompatible(reason, snapshot.capabilities, type) }
             .map(PunishmentReason::id)
@@ -168,13 +172,13 @@ class SharedSimulationState(
         issuedBy: PunishmentActor
     ): PunishmentSummaryResponse {
         val now = Instant.fromEpochMilliseconds(System.currentTimeMillis())
-        val expiresAt = durationSeconds?.let { seconds ->
+        val expiresAt = if (type == PunishmentType.KICK) null else durationSeconds?.let { seconds ->
             Instant.fromEpochMilliseconds(now.toEpochMilliseconds() + seconds * 1_000)
         }
         return PunishmentSummaryResponse(
             id = id,
             type = type,
-            status = PunishmentStatus.ACTIVE,
+            status = if (type == PunishmentType.KICK) PunishmentStatus.EXPIRED else PunishmentStatus.ACTIVE,
             targets = targets,
             reasonId = reasonId,
             issuedAt = now,

@@ -54,6 +54,10 @@ class PunishmentValidator(private val catalog: PunishmentCatalog) {
         type: PunishmentType,
         reasonId: String?
     ): PunishmentScope {
+        if (type == PunishmentType.KICK) {
+            return PunishmentScope()
+        }
+
         val keys = when {
             requestedScope.restrictionKeys.isNotEmpty() -> requestedScope.restrictionKeys
             reasonId != null -> catalog.reasonById(reasonId)

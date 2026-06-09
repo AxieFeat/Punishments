@@ -75,14 +75,14 @@ class PunishmentDomainService(
             val record = PunishmentRecord(
                 id = UUID.randomUUID(),
                 type = request.type,
-                status = PunishmentStatus.ACTIVE,
+                status = request.type.initialStatus(),
                 targets = targets,
                 scope = scope,
                 reasonId = reasonId,
                 reasonText = request.reasonText?.takeIf(String::isNotBlank),
                 issuedBy = request.issuer,
                 issuedAt = issuedAt,
-                expiresAt = request.durationSeconds?.let { duration -> issuedAt.plusSeconds(duration) }
+                expiresAt = request.type.expiresAt(issuedAt, request.durationSeconds)
             )
 
             repository.insert(
@@ -262,7 +262,7 @@ class PunishmentDomainService(
         targets: List<PunishmentTarget>,
         nowEpochMs: Long
     ) {
-        if (type == PunishmentType.WARN) {
+        if (!type.hasActiveRestriction()) {
             return
         }
 
@@ -323,6 +323,21 @@ class PunishmentDomainService(
 
     private fun Instant.plusSeconds(seconds: Long): Instant {
         return Instant.fromEpochMilliseconds(toEpochMilliseconds() + seconds * MILLIS_PER_SECOND)
+    }
+
+    private fun PunishmentType.initialStatus(): PunishmentStatus {
+        return if (this == PunishmentType.KICK) PunishmentStatus.EXPIRED else PunishmentStatus.ACTIVE
+    }
+
+    private fun PunishmentType.expiresAt(issuedAt: Instant, durationSeconds: Long?): Instant? {
+        if (this == PunishmentType.KICK) {
+            return null
+        }
+        return durationSeconds?.let { seconds -> issuedAt.plusSeconds(seconds) }
+    }
+
+    private fun PunishmentType.hasActiveRestriction(): Boolean {
+        return this == PunishmentType.BAN || this == PunishmentType.MUTE
     }
 
     private companion object {

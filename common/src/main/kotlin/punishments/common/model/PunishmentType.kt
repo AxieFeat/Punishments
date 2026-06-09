@@ -7,12 +7,14 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 enum class PunishmentType {
+
     BAN,
     MUTE,
     WARN,
     KICK;
 
     companion object {
+
         fun safeValueOf(value: String): PunishmentType? {
             return entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
         }

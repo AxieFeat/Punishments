@@ -3,6 +3,7 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -79,7 +80,12 @@ private fun shortGitCommitHash(workingDir: File): String? {
         }
 
         process.inputStream.bufferedReader().readText().trim().takeIf { it.isNotEmpty() }
-    } catch (_: Exception) {
+    } catch (_: IOException) {
+        null
+    } catch (_: SecurityException) {
+        null
+    } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
         null
     }
 }
