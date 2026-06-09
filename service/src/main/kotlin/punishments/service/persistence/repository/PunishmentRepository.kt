@@ -5,6 +5,7 @@ import punishments.common.model.PunishmentHistoryEntry
 import punishments.common.model.PunishmentRecord
 import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentSummaryRecord
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
@@ -33,9 +34,9 @@ interface PunishmentRepository {
         sort: PunishmentSort,
         page: Int,
         pageSize: Int
-    ): RepositoryPage<PunishmentRecord>
+    ): RepositoryPage<PunishmentSummaryRecord>
 
-    suspend fun search(query: String, page: Int, pageSize: Int): RepositoryPage<PunishmentRecord>
+    suspend fun search(query: String, page: Int, pageSize: Int): RepositoryPage<PunishmentSummaryRecord>
 
     suspend fun revoke(
         id: UUID,

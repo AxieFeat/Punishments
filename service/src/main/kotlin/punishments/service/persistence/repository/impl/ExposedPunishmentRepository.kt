@@ -27,6 +27,7 @@ import punishments.common.model.PunishmentRecord
 import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentSummaryRecord
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
@@ -113,7 +114,7 @@ class ExposedPunishmentRepository(
         sort: PunishmentSort,
         page: Int,
         pageSize: Int
-    ): RepositoryPage<PunishmentRecord> {
+    ): RepositoryPage<PunishmentSummaryRecord> {
         return db.transaction {
             val matchedIds = if (targets.isEmpty()) null else matchingPunishmentIds(targets)
             if (matchedIds != null && matchedIds.isEmpty()) {
@@ -123,25 +124,29 @@ class ExposedPunishmentRepository(
                     listFilter(matchedIds, type, status)
                 }
                 val total = query.count()
-                val items = query.sorted(sort)
+                val rows = query.sorted(sort)
                     .limit(pageSize)
                     .offset(page.toLong() * pageSize)
-                    .map(::loadRecord)
+                    .toList()
+                val targetsByPunishmentId = loadTargets(rows.map { row -> row[PunishmentsTable.id] })
+                val items = rows.map { row -> loadSummary(row, targetsByPunishmentId) }
                 RepositoryPage(items, total)
             }
         }
     }
 
-    override suspend fun search(query: String, page: Int, pageSize: Int): RepositoryPage<PunishmentRecord> {
+    override suspend fun search(query: String, page: Int, pageSize: Int): RepositoryPage<PunishmentSummaryRecord> {
         return db.transaction {
             val matchedIds = searchTargetPunishmentIds(query)
             val searchOp = searchFilter(query, matchedIds)
             val dbQuery = PunishmentsTable.selectAll().where { searchOp }
             val total = dbQuery.count()
-            val items = dbQuery.orderBy(PunishmentsTable.issuedAtEpochMs to SortOrder.DESC)
+            val rows = dbQuery.orderBy(PunishmentsTable.issuedAtEpochMs to SortOrder.DESC)
                 .limit(pageSize)
                 .offset(page.toLong() * pageSize)
-                .map(::loadRecord)
+                .toList()
+            val targetsByPunishmentId = loadTargets(rows.map { row -> row[PunishmentsTable.id] })
+            val items = rows.map { row -> loadSummary(row, targetsByPunishmentId) }
             RepositoryPage(items, total)
         }
     }
@@ -237,16 +242,7 @@ class ExposedPunishmentRepository(
 
     private fun loadRecord(row: ResultRow): PunishmentRecord {
         val punishmentId = row[PunishmentsTable.id]
-        val targets = PunishmentTargetsTable.selectAll()
-            .where { PunishmentTargetsTable.punishmentId eq punishmentId }
-            .orderBy(PunishmentTargetsTable.ordinal to SortOrder.ASC)
-            .map { targetRow ->
-                PunishmentTarget(
-                    id = targetRow[PunishmentTargetsTable.targetId],
-                    name = targetRow[PunishmentTargetsTable.targetName],
-                    kind = ActorDto(targetRow[PunishmentTargetsTable.targetKind])
-                )
-            }
+        val targets = loadTargets(listOf(punishmentId))[punishmentId].orEmpty()
         val scope = PunishmentScope(
             PunishmentScopesTable.select(PunishmentScopesTable.restrictionKey)
                 .where { PunishmentScopesTable.punishmentId eq punishmentId }
@@ -254,6 +250,40 @@ class ExposedPunishmentRepository(
                 .toSet()
         )
         return PunishmentMapper.fromRow(row, targets, scope)
+    }
+
+    private fun loadSummary(
+        row: ResultRow,
+        targetsByPunishmentId: Map<UUID, List<PunishmentTarget>>
+    ): PunishmentSummaryRecord {
+        val punishmentId = row[PunishmentsTable.id]
+        return PunishmentMapper.summaryFromRow(row, targetsByPunishmentId[punishmentId].orEmpty())
+    }
+
+    private fun loadTargets(punishmentIds: List<UUID>): Map<UUID, List<PunishmentTarget>> {
+        if (punishmentIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return PunishmentTargetsTable.selectAll()
+            .where { PunishmentTargetsTable.punishmentId inList punishmentIds }
+            .orderBy(
+                PunishmentTargetsTable.punishmentId to SortOrder.ASC,
+                PunishmentTargetsTable.ordinal to SortOrder.ASC
+            )
+            .map { targetRow ->
+                val punishmentId = targetRow[PunishmentTargetsTable.punishmentId]
+                val target = PunishmentTarget(
+                    id = targetRow[PunishmentTargetsTable.targetId],
+                    name = targetRow[PunishmentTargetsTable.targetName],
+                    kind = ActorDto(targetRow[PunishmentTargetsTable.targetKind])
+                )
+                punishmentId to target
+            }
+            .groupBy(
+                keySelector = { (punishmentId, _) -> punishmentId },
+                valueTransform = { (_, target) -> target }
+            )
     }
 
     private fun matchingPunishmentIds(targets: List<PunishmentTarget>): List<UUID> {

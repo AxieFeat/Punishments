@@ -6,6 +6,7 @@ import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentRecord
 import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentSummaryRecord
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.dto.ActorDto
@@ -36,6 +37,31 @@ object PunishmentMapper {
             expiresAt = row[PunishmentsTable.expiresAtEpochMs]?.toInstant(),
             revokedAt = row[PunishmentsTable.revokedAtEpochMs]?.toInstant(),
             revokedBy = revokedBy(row)
+        )
+    }
+
+    fun summaryFromRow(
+        row: ResultRow,
+        targets: List<PunishmentTarget>
+    ): PunishmentSummaryRecord {
+        return PunishmentSummaryRecord(
+            id = row[PunishmentsTable.id],
+            type = PunishmentType.valueOf(row[PunishmentsTable.type]),
+            status = PunishmentStatus.valueOf(row[PunishmentsTable.status]),
+            targets = targets,
+            reasonId = row[PunishmentsTable.reasonId],
+            reasonText = row[PunishmentsTable.reasonText],
+            issuedBy = issuedBy(row),
+            issuedAt = row[PunishmentsTable.issuedAtEpochMs].toInstant(),
+            expiresAt = row[PunishmentsTable.expiresAtEpochMs]?.toInstant()
+        )
+    }
+
+    private fun issuedBy(row: ResultRow): PunishmentActor {
+        return PunishmentActor(
+            id = row[PunishmentsTable.issuedById],
+            name = row[PunishmentsTable.issuedByName],
+            source = ActorDto(row[PunishmentsTable.issuedBySource])
         )
     }
 

@@ -27,6 +27,7 @@ import punishments.common.model.PunishmentHistoryType
 import punishments.common.model.PunishmentRecord
 import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentSummaryRecord
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
@@ -284,12 +285,12 @@ class PunishmentDomainService(
         )
     }
 
-    private fun RepositoryPage<PunishmentRecord>.toResponse(
+    private fun RepositoryPage<PunishmentSummaryRecord>.toResponse(
         page: Int,
         pageSize: Int
     ): PaginatedResponse<PunishmentSummaryResponse> {
         return PaginatedResponse(
-            items = items.map(PunishmentRecord::toSummary),
+            items = items.map(PunishmentSummaryRecord::toSummary),
             page = page,
             pageSize = pageSize,
             totalItems = totalItems,
