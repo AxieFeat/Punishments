@@ -9,4 +9,17 @@ import punishments.common.model.Actor
 @Serializable
 data class ActorDto(
     override val name: String
-) : Actor
+) : Actor {
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Actor) return false
+
+        return name == other.name
+    }
+
+    override fun hashCode(): Int {
+        return name.hashCode()
+    }
+
+}
