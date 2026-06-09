@@ -1,5 +1,6 @@
 plugins {
     id("punishments.serialization")
+    id("punishments.publishing")
 }
 
 dependencies {
