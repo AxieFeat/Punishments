@@ -9,7 +9,8 @@ import kotlinx.serialization.Serializable
 enum class PunishmentType {
     BAN,
     MUTE,
-    WARN;
+    WARN,
+    KICK;
 
     companion object {
         fun safeValueOf(value: String): PunishmentType? {
