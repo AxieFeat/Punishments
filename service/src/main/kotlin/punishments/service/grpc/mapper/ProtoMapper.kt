@@ -256,6 +256,7 @@ object ProtoMapper {
             this@toProto.reasonId?.let { reasonId = it }
             this@toProto.reasonText?.let { reasonText = it }
             issuedAtEpochMs = this@toProto.issuedAt.toEpochMilliseconds()
+            issuedBy = this.issuedBy
             this@toProto.expiresAt?.let { expiresAtEpochMs = it.toEpochMilliseconds() }
         }
     }

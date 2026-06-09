@@ -212,6 +212,7 @@ object ProtoClientMapper {
             reasonId = optionalString(hasReasonId(), reasonId),
             reasonText = optionalString(hasReasonText(), reasonText),
             issuedAt = Instant.fromEpochMilliseconds(issuedAtEpochMs),
+            issuedBy = issuedBy.toDomain(),
             expiresAt = if (hasExpiresAtEpochMs()) Instant.fromEpochMilliseconds(expiresAtEpochMs) else null
         )
     }

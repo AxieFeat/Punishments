@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 /**
  * Target kind for punishment selection. Our implementation provides only three target kinds.
  * For custom implementation you can create your own sources by implementing [Actor] interface and using it in [PunishmentTarget.kind] property.
+ *
+ * @see Actor
  */
 @Serializable
 enum class TargetKind : Actor {

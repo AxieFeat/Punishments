@@ -1,6 +1,7 @@
 package punishments.common.dto.response
 
 import kotlinx.serialization.Serializable
+import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
@@ -19,5 +20,6 @@ data class PunishmentSummaryResponse(
     val reasonId: String? = null,
     val reasonText: String? = null,
     val issuedAt: ContextualInstant,
+    val issuedBy: PunishmentActor,
     val expiresAt: ContextualInstant? = null
 )

@@ -2,6 +2,7 @@ package punishments.client.stress.simulation
 
 import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
+import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentCapability
 import punishments.common.model.PunishmentCatalog
 import punishments.common.model.PunishmentReason
@@ -44,6 +45,7 @@ class SharedSimulationState(
                 targets = response.targets,
                 reasonId = response.reasonId,
                 issuedAt = response.issuedAt,
+                issuedBy = response.issuedBy,
                 expiresAt = response.expiresAt
             )
         )
@@ -162,7 +164,8 @@ class SharedSimulationState(
         type: PunishmentType,
         targets: List<PunishmentTarget>,
         reasonId: String?,
-        durationSeconds: Long?
+        durationSeconds: Long?,
+        issuedBy: PunishmentActor
     ): PunishmentSummaryResponse {
         val now = Instant.fromEpochMilliseconds(System.currentTimeMillis())
         val expiresAt = durationSeconds?.let { seconds ->
@@ -175,6 +178,7 @@ class SharedSimulationState(
             targets = targets,
             reasonId = reasonId,
             issuedAt = now,
+            issuedBy = issuedBy,
             expiresAt = expiresAt
         )
     }

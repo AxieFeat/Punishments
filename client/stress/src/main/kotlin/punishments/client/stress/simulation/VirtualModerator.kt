@@ -162,7 +162,7 @@ class VirtualModerator(
                 metrics.incrementCounter("created_punishments", result.createdIds.size.toLong())
                 result.createdIds.forEach { id ->
                     sharedState.rememberPunishment(
-                        sharedState.newSummary(id, type, listOf(target), reasonId, durationSeconds)
+                        sharedState.newSummary(id, type, listOf(target), reasonId, durationSeconds, actor)
                     )
                 }
             }

@@ -105,7 +105,8 @@ message PunishmentSummaryProto {
   optional string reason_id = 5;
   optional string reason_text = 6;
   int64 issued_at_epoch_ms = 7;
-  optional int64 expires_at_epoch_ms = 8;
+  PunishmentActorProto issued_by = 8;
+  optional int64 expires_at_epoch_ms = 9;
 }
 
 message PaginatedPunishmentsProto {

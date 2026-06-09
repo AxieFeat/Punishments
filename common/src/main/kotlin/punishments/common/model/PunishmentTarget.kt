@@ -7,7 +7,8 @@ import punishments.common.serialization.ContextualUUID
 /**
  * Concrete target resolved from command selection.
  *
- * See also: [TargetSelection] For details about target selection and how to use it in punishment creation.
+ * - See also: [TargetSelection] For details about target selection and how to use it in punishment creation.
+ * - See also: [Actor] For details about equality operations with actors.
  *
  * For ip-based punishment, you can use an ip address as the [name].
  * In this case, the [id] can be `null` and the [kind] can be set to [TargetKind.UNKNOWN] or a custom target kind if you have defined one.
