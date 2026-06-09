@@ -140,6 +140,7 @@ class VirtualModerator(
             PunishmentType.WARN -> null
             PunishmentType.MUTE -> listOf(300L, 900L, 3_600L, 21_600L).random()
             PunishmentType.BAN -> listOf(3_600L, 86_400L, 604_800L).random()
+            PunishmentType.KICK -> null
         }
         val reasonId = sharedState.compatibleReasonIds(type).randomOrNull()
         val scope = resolveScope(type, reasonId)
