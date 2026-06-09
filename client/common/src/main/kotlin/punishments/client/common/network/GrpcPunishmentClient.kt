@@ -9,8 +9,17 @@ import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
+import punishments.client.common.cache.ClientSideCache
+import punishments.client.common.config.ClientConfig
+import punishments.client.common.messaging.DualEventConsumer
+import punishments.client.common.messaging.EventDeduplicator
+import punishments.client.common.messaging.EventHandler
+import punishments.client.common.messaging.RedisEventConsumer
 import punishments.client.common.network.mapper.ProtoClientMapper.toDomain
 import punishments.client.common.network.mapper.ProtoClientMapper.toProto
 import punishments.common.dto.request.CreatePunishmentRequest
@@ -26,6 +35,7 @@ import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
+import punishments.common.event.PunishmentEvent
 import punishments.common.grpc.PunishmentServiceGrpcKt
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentType
@@ -43,6 +53,24 @@ class GrpcPunishmentClient(
 
     init {
         channel.connect()
+    }
+
+    var eventConsumer: DualEventConsumer? = null
+        private set
+
+    fun createEventConsumer(
+        cache: ClientSideCache = ClientSideCache(10),
+        redisConfig: ClientConfig = ClientConfig(),
+        eventHandler: EventHandler,
+    ): DualEventConsumer {
+        val consumer = DualEventConsumer(
+            redisConsumer = RedisEventConsumer(redisConfig),
+            deduplicator = EventDeduplicator(),
+            eventHandler = eventHandler,
+            cache = cache
+        )
+        eventConsumer = consumer
+        return consumer
     }
 
     /**
@@ -106,6 +134,7 @@ class GrpcPunishmentClient(
     }
 
     fun shutdown() {
+        eventConsumer?.close()
         channel.shutdown()
     }
 
