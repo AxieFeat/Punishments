@@ -16,7 +16,7 @@ import punishments.common.dto.request.SearchPunishmentsRequest
 import punishments.common.dto.response.CreatePunishmentResult
 import punishments.common.dto.response.RevokePunishmentResult
 import punishments.common.error.ErrorCode
-import punishments.common.model.ActorSource
+import punishments.common.model.ActorSourceType
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentSort
@@ -34,7 +34,7 @@ class VirtualModerator(
     private val metrics: MetricsCollector,
     private val config: StressTestConfig
 ) {
-    private val actor = PunishmentActor(id = identity.uuid, name = identity.name, source = ActorSource.STAFF)
+    private val actor = PunishmentActor(id = identity.uuid, name = identity.name, source = ActorSourceType.STAFF)
 
     suspend fun runUntil(deadlineMs: Long) {
         while (coroutineContext.isActive && System.currentTimeMillis() < deadlineMs) {

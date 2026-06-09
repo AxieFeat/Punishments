@@ -1,7 +1,7 @@
 package punishments.service.persistence.mapper
 
 import org.jetbrains.exposed.v1.core.ResultRow
-import punishments.common.model.ActorSource
+import punishments.common.model.ActorSourceType
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentRecord
 import punishments.common.model.PunishmentScope
@@ -9,7 +9,7 @@ import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentSummaryRecord
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.dto.ActorDto
+import punishments.common.dto.ActorTypeDto
 import punishments.service.persistence.table.PunishmentsTable
 import kotlin.time.Instant
 
@@ -31,7 +31,7 @@ object PunishmentMapper {
             issuedBy = PunishmentActor(
                 id = row[PunishmentsTable.issuedById],
                 name = row[PunishmentsTable.issuedByName],
-                source = ActorDto(row[PunishmentsTable.issuedBySource])
+                source = ActorTypeDto(row[PunishmentsTable.issuedBySource])
             ),
             issuedAt = row[PunishmentsTable.issuedAtEpochMs].toInstant(),
             expiresAt = row[PunishmentsTable.expiresAtEpochMs]?.toInstant(),
@@ -61,7 +61,7 @@ object PunishmentMapper {
         return PunishmentActor(
             id = row[PunishmentsTable.issuedById],
             name = row[PunishmentsTable.issuedByName],
-            source = ActorDto(row[PunishmentsTable.issuedBySource])
+            source = ActorTypeDto(row[PunishmentsTable.issuedBySource])
         )
     }
 
@@ -70,7 +70,7 @@ object PunishmentMapper {
         return PunishmentActor(
             id = row[PunishmentsTable.revokedById],
             name = name,
-            source = ActorDto(row[PunishmentsTable.revokedBySource] ?: ActorSource.SYSTEM.name)
+            source = ActorTypeDto(row[PunishmentsTable.revokedBySource] ?: ActorSourceType.SYSTEM.name)
         )
     }
 

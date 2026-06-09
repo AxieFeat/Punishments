@@ -1,19 +1,19 @@
 package punishments.common.dto
 
 import kotlinx.serialization.Serializable
-import punishments.common.model.Actor
+import punishments.common.model.ActorType
 
 /**
- * This class created only for deserialization of Actor interface.
+ * This class created only for deserialization of [ActorType] interface.
  */
 @Serializable
-data class ActorDto(
+data class ActorTypeDto(
     override val name: String
-) : Actor {
+) : ActorType {
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is Actor) return false
+        if (other !is ActorType) return false
 
         return name == other.name
     }

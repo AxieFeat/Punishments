@@ -46,7 +46,7 @@ import punishments.common.grpc.punishmentSummaryProto
 import punishments.common.grpc.punishmentTargetProto
 import punishments.common.grpc.reasonCatalogProto
 import punishments.common.grpc.revokePunishmentResultProto
-import punishments.common.model.ActorSource
+import punishments.common.model.ActorSourceType
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentCapability
 import punishments.common.model.PunishmentReason
@@ -55,9 +55,9 @@ import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetKind
+import punishments.common.model.TargetType
 import punishments.common.model.TargetSelection
-import punishments.common.dto.ActorDto
+import punishments.common.dto.ActorTypeDto
 import java.util.UUID
 import kotlin.time.Instant
 
@@ -209,7 +209,7 @@ object ProtoMapper {
         return PunishmentTarget(
             id = id.uuidOrNull(),
             name = name.takeIf(String::isNotBlank),
-            kind = if(kind.isNotBlank()) ActorDto(kind) else TargetKind.UNKNOWN
+            kind = if(kind.isNotBlank()) ActorTypeDto(kind) else TargetType.UNKNOWN
         )
     }
 
@@ -221,7 +221,7 @@ object ProtoMapper {
         return PunishmentActor(
             id = id.uuidOrNull(),
             name = name,
-            source = if(source.isNotBlank()) ActorDto(source) else ActorSource.SYSTEM
+            source = if(source.isNotBlank()) ActorTypeDto(source) else ActorSourceType.SYSTEM
         )
     }
 

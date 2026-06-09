@@ -1,6 +1,6 @@
 package punishments.client.common.network.mapper
 
-import punishments.common.dto.ActorDto
+import punishments.common.dto.ActorTypeDto
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
@@ -44,7 +44,7 @@ import punishments.common.grpc.punishmentScopeProto
 import punishments.common.grpc.punishmentTargetProto
 import punishments.common.grpc.revokePunishmentProto
 import punishments.common.grpc.searchPunishmentsProto
-import punishments.common.model.ActorSource
+import punishments.common.model.ActorSourceType
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentCapability
 import punishments.common.model.PunishmentCatalog
@@ -53,7 +53,7 @@ import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetKind
+import punishments.common.model.TargetType
 import punishments.common.model.TargetSelection
 import java.util.UUID
 import kotlin.time.Instant
@@ -221,7 +221,7 @@ object ProtoClientMapper {
         return PunishmentTarget(
             id = id.uuidOrNull(),
             name = name.takeIf(String::isNotBlank),
-            kind = if(kind.isNotBlank()) ActorDto(kind) else TargetKind.UNKNOWN
+            kind = if(kind.isNotBlank()) ActorTypeDto(kind) else TargetType.UNKNOWN
         )
     }
 
@@ -233,7 +233,7 @@ object ProtoClientMapper {
         return PunishmentActor(
             id = id.uuidOrNull(),
             name = name,
-            source = if(source.isNotBlank()) ActorDto(source) else ActorSource.SYSTEM
+            source = if(source.isNotBlank()) ActorTypeDto(source) else ActorSourceType.SYSTEM
         )
     }
 

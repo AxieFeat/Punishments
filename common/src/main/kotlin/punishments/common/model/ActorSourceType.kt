@@ -4,12 +4,12 @@ import kotlinx.serialization.Serializable
 
 /**
  * Source of moderation action. Our implementation provides only three sources.
- * For custom implementation you can create your own sources by implementing [Actor] interface and using it in [PunishmentActor.source] property.
+ * For custom implementation you can create your own sources by implementing [ActorType] interface and using it in [PunishmentActor.source] property.
  *
- * @see Actor
+ * @see ActorType
  */
 @Serializable
-enum class ActorSource : Actor {
+enum class ActorSourceType : ActorType {
 
     /**
      * Represents a staff member or moderator who issued the punishment.

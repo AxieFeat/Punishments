@@ -1,7 +1,7 @@
 package punishments.common.serialization
 
 import kotlinx.serialization.Contextual
-import punishments.common.model.Actor
+import punishments.common.model.ActorType
 import java.util.UUID
 import kotlin.time.Instant
 
@@ -18,4 +18,4 @@ typealias ContextualUUID = @Contextual UUID
 /**
  * Actor serialized via a contextual module.
  */
-typealias ContextualActor = @Contextual Actor
+typealias ContextualActor = @Contextual ActorType

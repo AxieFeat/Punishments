@@ -5,7 +5,7 @@ package punishments.common.model
  * This is some entity, that can receive punishment, or issue/revoke it.
  *
  * IMPORTANT: Any parameter in custom implementation except [name] will not be serialized.
- * And after deserialization in all cases you receive instance of [punishments.common.dto.ActorDto].
+ * And after deserialization in all cases you receive instance of [punishments.common.dto.ActorTypeDto].
  * That's mean you have limitation in equality operation.
  *
  * In example:
@@ -30,10 +30,10 @@ package punishments.common.model
  * val isStaff: Boolean = kind.name == ActorSource.STAFF.name
  * ```
  *
- * @see ActorSource
- * @see TargetKind
+ * @see ActorSourceType
+ * @see TargetType
  */
-interface Actor {
+interface ActorType {
 
     /**
      * Some string name of the actor. Just for display purposes. In example - auditing logs.

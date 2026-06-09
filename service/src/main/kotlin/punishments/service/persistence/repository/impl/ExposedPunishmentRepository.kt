@@ -19,7 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
-import punishments.common.dto.ActorDto
+import punishments.common.dto.ActorTypeDto
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentHistoryEntry
 import punishments.common.model.PunishmentHistoryType
@@ -276,7 +276,7 @@ class ExposedPunishmentRepository(
                 val target = PunishmentTarget(
                     id = targetRow[PunishmentTargetsTable.targetId],
                     name = targetRow[PunishmentTargetsTable.targetName],
-                    kind = ActorDto(targetRow[PunishmentTargetsTable.targetKind])
+                    kind = ActorTypeDto(targetRow[PunishmentTargetsTable.targetKind])
                 )
                 punishmentId to target
             }

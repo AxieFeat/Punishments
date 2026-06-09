@@ -7,7 +7,7 @@ import punishments.common.serialization.ContextualUUID
 /**
  * Represents the actor who issued or revoked a punishment.
  *
- * See also: [Actor] For details about equality operations with actors.
+ * See also: [ActorType] For details about equality operations with actors.
  *
  * @param id The unique identifier of the actor, if applicable. For player actors, this would be their UUID. For console or other non-player actors, this can be null.
  * @param name The name of the actor. For player actors, this would be their username. For console or other non-player actors, this could be a descriptive name like "CONSOLE" or "EXTERNAL_SYSTEM".
@@ -17,5 +17,5 @@ import punishments.common.serialization.ContextualUUID
 data class PunishmentActor(
     val id: ContextualUUID? = null,
     val name: String,
-    val source: ContextualActor = ActorSource.STAFF
+    val source: ContextualActor = ActorSourceType.STAFF
 )

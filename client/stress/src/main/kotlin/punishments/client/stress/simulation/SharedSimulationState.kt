@@ -9,7 +9,7 @@ import punishments.common.model.PunishmentReason
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetKind
+import punishments.common.model.TargetType
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -121,7 +121,7 @@ class SharedSimulationState(
         val target = PunishmentTarget(
             id = UUID.nameUUIDFromBytes(seed),
             name = "Player$index",
-            kind = TargetKind.PLAYER
+            kind = TargetType.PLAYER
         )
         rememberTarget(target)
         return target
