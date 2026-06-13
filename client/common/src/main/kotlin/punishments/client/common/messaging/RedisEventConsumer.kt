@@ -32,7 +32,7 @@ class RedisEventConsumer(
 ) : AutoCloseable {
 
     private val logger = LoggerFactory.getLogger(RedisEventConsumer::class.java)
-    private val client: RedisClient = RedisClient.create(config.redisNodes.first())
+    private val client: RedisClient = RedisClient.create(config.redisNode)
     private val connection: StatefulRedisConnection<String, String> = client.connect()
     private val commands: RedisCommands<String, String> = connection.sync()
     private var job: Job? = null

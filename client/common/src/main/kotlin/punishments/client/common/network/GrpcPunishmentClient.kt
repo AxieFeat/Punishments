@@ -9,12 +9,8 @@ import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
-import punishments.client.common.cache.ClientSideCache
 import punishments.client.common.config.ClientConfig
 import punishments.client.common.messaging.DualEventConsumer
 import punishments.client.common.messaging.EventDeduplicator
@@ -35,7 +31,6 @@ import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
-import punishments.common.event.PunishmentEvent
 import punishments.common.grpc.PunishmentServiceGrpcKt
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentType
@@ -44,7 +39,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
 class GrpcPunishmentClient(
-    private val config: GrpcClientConfig,
+    private val config: ClientConfig,
     private val serviceToken: String = ""
 ) : PunishmentAPI, AutoCloseable {
 
@@ -55,22 +50,15 @@ class GrpcPunishmentClient(
         channel.connect()
     }
 
-    var eventConsumer: DualEventConsumer? = null
-        private set
-
     fun createEventConsumer(
-        cache: ClientSideCache = ClientSideCache(10),
-        redisConfig: ClientConfig = ClientConfig(),
+        redisConfig: ClientConfig = config,
         eventHandler: EventHandler,
     ): DualEventConsumer {
-        val consumer = DualEventConsumer(
+        return DualEventConsumer(
             redisConsumer = RedisEventConsumer(redisConfig),
             deduplicator = EventDeduplicator(),
-            eventHandler = eventHandler,
-            cache = cache
+            eventHandler = eventHandler
         )
-        eventConsumer = consumer
-        return consumer
     }
 
     /**
@@ -134,7 +122,6 @@ class GrpcPunishmentClient(
     }
 
     fun shutdown() {
-        eventConsumer?.close()
         channel.shutdown()
     }
 
@@ -144,7 +131,7 @@ class GrpcPunishmentClient(
 
     private fun createStub(): PunishmentServiceGrpcKt.PunishmentServiceCoroutineStub {
         val stub = PunishmentServiceGrpcKt.PunishmentServiceCoroutineStub(channel.getChannel())
-            .withDeadlineAfter(config.timeoutMs, TimeUnit.MILLISECONDS)
+            .withDeadlineAfter(config.grpcTimeoutMs, TimeUnit.MILLISECONDS)
 
         return if (serviceToken.isNotBlank()) {
             stub.withInterceptors(AuthHeaderInterceptor(serviceToken))
@@ -156,18 +143,18 @@ class GrpcPunishmentClient(
     private suspend fun <T> retrying(method: String, block: suspend () -> T): T {
         var lastException: Exception? = null
 
-        for (attempt in 1..config.retryAttempts) {
+        for (attempt in 1..config.grpcRetryAttempts) {
             try {
                 return block()
             } catch (e: StatusException) {
                 lastException = e
                 val retryable = e.status.code in RETRYABLE_STATUSES
-                if (!retryable || attempt == config.retryAttempts) {
+                if (!retryable || attempt == config.grpcRetryAttempts) {
                     logger.warn(
                         "gRPC {} failed (attempt {}/{}): {} - {}",
                         method,
                         attempt,
-                        config.retryAttempts,
+                        config.grpcRetryAttempts,
                         e.status.code,
                         e.status.description
                     )
@@ -179,7 +166,7 @@ class GrpcPunishmentClient(
                     "gRPC {} retry {}/{} after {}ms: {}",
                     method,
                     attempt,
-                    config.retryAttempts,
+                    config.grpcRetryAttempts,
                     delayMs,
                     e.status.code
                 )

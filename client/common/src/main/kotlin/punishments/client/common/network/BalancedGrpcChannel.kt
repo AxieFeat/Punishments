@@ -3,10 +3,11 @@ package punishments.client.common.network
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import org.slf4j.LoggerFactory
+import punishments.client.common.config.ClientConfig
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-class BalancedGrpcChannel(private val config: GrpcClientConfig) {
+class BalancedGrpcChannel(private val config: ClientConfig) {
 
     private val logger = LoggerFactory.getLogger(BalancedGrpcChannel::class.java)
     private val channels = mutableListOf<ManagedChannel>()
@@ -21,7 +22,7 @@ class BalancedGrpcChannel(private val config: GrpcClientConfig) {
             repeat(config.channelsPerAddress) { index ->
                 val channel = ManagedChannelBuilder.forAddress(host, port)
                     .usePlaintext()
-                    .keepAliveTime(config.keepAliveSeconds, TimeUnit.SECONDS)
+                    .keepAliveTime(config.grpcKeepAliveSeconds, TimeUnit.SECONDS)
                     .keepAliveTimeout(10, TimeUnit.SECONDS)
                     .keepAliveWithoutCalls(true)
                     .maxInboundMessageSize(16 * 1024 * 1024)

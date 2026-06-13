@@ -2,14 +2,12 @@ package punishments.client.common.messaging
 
 import kotlinx.coroutines.CoroutineScope
 import org.slf4j.LoggerFactory
-import punishments.client.common.cache.ClientSideCache
 import punishments.common.event.PunishmentEvent
 
 class DualEventConsumer(
     private val redisConsumer: RedisEventConsumer,
     private val deduplicator: EventDeduplicator,
-    private val eventHandler: EventHandler,
-    private val cache: ClientSideCache
+    private val eventHandler: EventHandler
 ) : AutoCloseable {
 
     private val logger = LoggerFactory.getLogger(DualEventConsumer::class.java)
@@ -31,8 +29,6 @@ class DualEventConsumer(
         if (!deduplicator.tryProcess(event.metadata.eventId)) {
             return
         }
-
-        cache.invalidateAll()
 
         when (event) {
             is PunishmentEvent.PunishmentCreated -> eventHandler.onPunishmentCreated(event)
