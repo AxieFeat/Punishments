@@ -47,7 +47,10 @@ complexity:
     active: true
     ignoreAnnotated: ["Catalogue"]
   TooManyFunctions:
+    active: false
     ignoreOverridden: true
+  LongParameterList:
+    active: false
 
 coroutines:
   active: true
