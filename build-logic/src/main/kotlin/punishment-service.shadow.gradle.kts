@@ -6,7 +6,7 @@ import org.gradle.api.file.DuplicatesStrategy
  */
 
 plugins {
-    id("punishments.base")
+    id("punishment-service.base")
     id("com.gradleup.shadow")
 }
 

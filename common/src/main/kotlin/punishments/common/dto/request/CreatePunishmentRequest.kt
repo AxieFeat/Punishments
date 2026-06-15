@@ -3,6 +3,7 @@ package punishments.common.dto.request
 import kotlinx.serialization.Serializable
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentScope
+import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
 import punishments.common.serialization.ContextualInstant
@@ -29,7 +30,18 @@ import punishments.common.serialization.ContextualInstant
  *   ),
  *   scope = PunishmentScope(setOf("chat.text")),
  *   reasonId = "spam",
- *   issuer = PunishmentActor(name = "CONSOLE", source = ActorSource.CONSOLE)
+ *   issuer = PunishmentActor.console()
+ * )
+ * ```
+ *
+ * IP-based ban example:
+ * ```kotlin
+ * CreatePunishmentRequest.forIpAddress(
+ *   type = PunishmentType.BAN,
+ *   address = "127.0.0.1",
+ *   scope = PunishmentScope(setOf("server.join")),
+ *   reasonId = "cheat",
+ *   issuer = PunishmentActor.console()
  * )
  * ```
  *
@@ -49,6 +61,7 @@ import punishments.common.serialization.ContextualInstant
  * @property durationSeconds An optional duration in seconds for this punishment. If `null`, the punishment is considered permanent. If provided, the punishment should automatically expire after the specified duration has passed since the [issuedAt] time.
  * @property issuer The actor who issued this punishment. This can be a player, console, or any other entity capable of issuing punishments.
  * @property issuedAt The timestamp when this punishment was issued. This is optional and can be set by the service if not provided. It is used to calculate the expiration time for temporary punishments.
+ * @property requestId Optional idempotency key. Reusing the same key with the same request returns the stored command result, which makes client or Envoy retries safe.
  */
 @Serializable
 data class CreatePunishmentRequest(
@@ -59,5 +72,59 @@ data class CreatePunishmentRequest(
     val reasonText: String? = null,
     val durationSeconds: Long? = null,
     val issuer: PunishmentActor,
-    val issuedAt: ContextualInstant? = null
-)
+    val issuedAt: ContextualInstant? = null,
+    val requestId: String? = null
+) {
+
+    companion object {
+
+        fun forIpAddress(
+            type: PunishmentType,
+            address: String,
+            scope: PunishmentScope = PunishmentScope(),
+            reasonId: String? = null,
+            reasonText: String? = null,
+            durationSeconds: Long? = null,
+            issuer: PunishmentActor,
+            issuedAt: ContextualInstant? = null,
+            requestId: String? = null
+        ): CreatePunishmentRequest {
+            return CreatePunishmentRequest(
+                type = type,
+                selection = TargetSelection.ipAddress(address),
+                scope = scope,
+                reasonId = reasonId,
+                reasonText = reasonText,
+                durationSeconds = durationSeconds,
+                issuer = issuer,
+                issuedAt = issuedAt,
+                requestId = requestId
+            )
+        }
+
+        fun forTarget(
+            type: PunishmentType,
+            target: PunishmentTarget,
+            selector: String? = target.name,
+            scope: PunishmentScope = PunishmentScope(),
+            reasonId: String? = null,
+            reasonText: String? = null,
+            durationSeconds: Long? = null,
+            issuer: PunishmentActor,
+            issuedAt: ContextualInstant? = null,
+            requestId: String? = null
+        ): CreatePunishmentRequest {
+            return CreatePunishmentRequest(
+                type = type,
+                selection = TargetSelection.of(target, selector),
+                scope = scope,
+                reasonId = reasonId,
+                reasonText = reasonText,
+                durationSeconds = durationSeconds,
+                issuer = issuer,
+                issuedAt = issuedAt,
+                requestId = requestId
+            )
+        }
+    }
+}

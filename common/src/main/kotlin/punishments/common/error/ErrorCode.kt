@@ -15,5 +15,6 @@ enum class ErrorCode(val httpStatus: Int) {
     REASON_NOT_FOUND(404),
     INVALID_SCOPE(400),
     INVALID_REQUEST(400),
+    AUTHENTICATION_FAILED(401),
     INTERNAL_ERROR(500)
 }

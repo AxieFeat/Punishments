@@ -1,0 +1,4 @@
+services:
+  punishment-service:
+    deploy:
+      replicas: 3

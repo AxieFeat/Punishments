@@ -1,25 +1,40 @@
 package punishments.common.model
 
 import kotlinx.serialization.Serializable
-import punishments.common.serialization.ContextualActor
 import punishments.common.serialization.ContextualUUID
+import java.util.UUID
 
 /**
  * Concrete target resolved from command selection.
  *
  * - See also: [TargetSelection] For details about target selection and how to use it in punishment creation.
- * - See also: [ActorType] For details about equality operations with actors.
  *
- * For ip-based punishment, you can use an ip address as the [name].
- * In this case, the [id] can be `null` and the [kind] can be set to [TargetType.UNKNOWN] or a custom target kind if you have defined one.
+ * For IP-based punishments, prefer [ipAddress] or [TargetSelection.ipAddress].
  *
  * @param id The unique identifier of the target, if applicable. For player targets, this would be their UUID. For non-player targets, this can be null.
  * @param name The name of the target. For player targets, this would be their username. For non-player targets, this could be a descriptive name or identifier, such as an IP address or a group name.
- * @param kind The kind of target, which indicates whether the target is a player or ip in example.
+ * @param targetType The kind of target, for example [TargetKind.PLAYER] or [TargetKind.IP_ADDRESS].
  */
 @Serializable
 data class PunishmentTarget(
     val id: ContextualUUID? = null,
     val name: String? = null,
-    val kind: ContextualActor = TargetType.PLAYER
-)
+    val targetType: TargetKind = TargetKind.PLAYER
+) {
+
+    companion object {
+        fun player(id: UUID? = null, name: String? = null): PunishmentTarget {
+            return PunishmentTarget(id = id, name = name, targetType = TargetKind.PLAYER)
+        }
+
+        fun ipAddress(address: String): PunishmentTarget {
+            val normalized = address.trim()
+            require(normalized.isNotEmpty()) { "IP address must not be blank" }
+            return PunishmentTarget(name = normalized, targetType = TargetKind.IP_ADDRESS)
+        }
+
+        fun custom(id: UUID? = null, name: String? = null, targetType: TargetKind): PunishmentTarget {
+            return PunishmentTarget(id = id, name = name, targetType = targetType)
+        }
+    }
+}

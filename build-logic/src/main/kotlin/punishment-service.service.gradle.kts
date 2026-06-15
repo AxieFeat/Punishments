@@ -3,8 +3,8 @@
  */
 
 plugins {
-    id("punishments.serialization")
-    id("punishments.shadow")
+    id("punishment-service.serialization")
+    id("punishment-service.shadow")
     application
 }
 

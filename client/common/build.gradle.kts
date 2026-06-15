@@ -1,6 +1,6 @@
 plugins {
-    id("punishments.serialization")
-    id("punishments.publishing")
+    id("punishment-service.serialization")
+    id("punishment-service.publishing")
 }
 
 dependencies {
@@ -20,6 +20,12 @@ dependencies {
 
     // gRPC Client
     implementation(libs.grpc.okhttp)
+
+    // HTTP Client
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     // Logging
     implementation(libs.slf4j)

@@ -19,6 +19,8 @@ import punishments.client.common.messaging.RedisEventConsumer
 import punishments.client.common.network.mapper.ProtoClientMapper.toDomain
 import punishments.client.common.network.mapper.ProtoClientMapper.toProto
 import punishments.common.dto.request.CreatePunishmentRequest
+import punishments.common.dto.request.CheckTargetRestrictionsRequest
+import punishments.common.dto.request.GetActiveRestrictionsRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
@@ -31,6 +33,7 @@ import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
+import punishments.common.dto.response.TargetRestrictionsResponse
 import punishments.common.grpc.PunishmentServiceGrpcKt
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentType
@@ -40,7 +43,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class GrpcPunishmentClient(
     private val config: ClientConfig,
-    private val serviceToken: String = ""
+    private val serviceToken: String = config.serviceToken
 ) : PunishmentAPI, AutoCloseable {
 
     private val logger = LoggerFactory.getLogger(GrpcPunishmentClient::class.java)
@@ -119,6 +122,18 @@ class GrpcPunishmentClient(
      */
     override suspend fun getCatalog(request: GetCatalogRequest): ReasonCatalogResponse = retrying("getCatalog") {
         createStub().getCatalog(request.toProto()).toDomain()
+    }
+
+    override suspend fun checkTargetRestrictions(
+        request: CheckTargetRestrictionsRequest
+    ): TargetRestrictionsResponse = retrying("checkTargetRestrictions") {
+        createStub().checkTargetRestrictions(request.toProto()).toDomain()
+    }
+
+    override suspend fun getActiveRestrictions(
+        request: GetActiveRestrictionsRequest
+    ): TargetRestrictionsResponse = retrying("getActiveRestrictions") {
+        createStub().getActiveRestrictions(request.toProto()).toDomain()
     }
 
     fun shutdown() {

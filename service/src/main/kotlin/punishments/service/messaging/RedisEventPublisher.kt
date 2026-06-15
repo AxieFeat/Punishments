@@ -21,7 +21,7 @@ class RedisEventPublisher(
     }
 
     private companion object {
-        const val EVENT_STREAM = "punishments:events"
+        const val EVENT_STREAM = "punishment-service:events"
         const val STREAM_MAX_LENGTH = 100_000L
     }
 }

@@ -8,6 +8,7 @@ import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
+import punishments.common.util.ValidationUtils
 
 class InvalidPunishmentRequestException(message: String) :
     IllegalArgumentException(message)
@@ -15,10 +16,8 @@ class InvalidPunishmentRequestException(message: String) :
 class PunishmentValidator(private val catalog: PunishmentCatalog) {
 
     fun normalizeTargets(selection: TargetSelection): List<PunishmentTarget> {
-        val targets = selection.targets.filter { target ->
-            target.id != null || !target.name.isNullOrBlank()
-        }.distinctBy { target ->
-            target.id?.toString() ?: "${target.kind.name}:${target.name.orEmpty().lowercase()}"
+        val targets = invalidRequestAsDomainException {
+            ValidationUtils.normalizeTargets(selection.targets)
         }
         if (targets.isEmpty()) {
             throw InvalidPunishmentRequestException("At least one resolved target is required")
@@ -27,9 +26,8 @@ class PunishmentValidator(private val catalog: PunishmentCatalog) {
     }
 
     fun normalizeReasonId(reasonId: String?): String? {
-        val normalized = reasonId?.trim()?.takeIf(String::isNotBlank)
-        if (normalized != null && normalized.length > REASON_ID_MAX_LENGTH) {
-            throw InvalidPunishmentRequestException("Reason id is too long")
+        val normalized = invalidRequestAsDomainException {
+            ValidationUtils.normalizeReasonId(reasonId)
         }
         if (normalized != null && catalog.reasonById(normalized) == null) {
             throw ReasonNotFoundException(normalized)
@@ -38,13 +36,17 @@ class PunishmentValidator(private val catalog: PunishmentCatalog) {
     }
 
     fun validateActor(actor: PunishmentActor) {
-        if (actor.name.isBlank()) {
-            throw InvalidPunishmentRequestException("Actor name is required")
+        normalizeActor(actor)
+    }
+
+    fun normalizeActor(actor: PunishmentActor): PunishmentActor {
+        return invalidRequestAsDomainException {
+            actor.copy(name = ValidationUtils.normalizeActorName(actor.name))
         }
     }
 
     fun validateDuration(durationSeconds: Long?) {
-        if (durationSeconds != null && durationSeconds <= 0) {
+        if (!ValidationUtils.isValidDurationSeconds(durationSeconds)) {
             throw InvalidPunishmentRequestException("Duration must be positive")
         }
     }
@@ -67,8 +69,11 @@ class PunishmentValidator(private val catalog: PunishmentCatalog) {
             else -> defaultScopeKeys(type)
         }
 
-        keys.forEach { key -> validateScopeKey(key, type) }
-        return PunishmentScope(keys)
+        val normalizedKeys = invalidRequestAsDomainException {
+            ValidationUtils.normalizeRestrictionKeys(keys)
+        }
+        normalizedKeys.forEach { key -> validateScopeKey(key, type) }
+        return PunishmentScope(normalizedKeys)
     }
 
     private fun defaultScopeKeys(type: PunishmentType): Set<String> {
@@ -86,7 +91,11 @@ class PunishmentValidator(private val catalog: PunishmentCatalog) {
         }
     }
 
-    private companion object {
-        const val REASON_ID_MAX_LENGTH = 64
+    private inline fun <T> invalidRequestAsDomainException(block: () -> T): T {
+        return try {
+            block()
+        } catch (e: IllegalArgumentException) {
+            throw InvalidPunishmentRequestException(e.message ?: "Invalid request")
+        }
     }
 }

@@ -1,6 +1,6 @@
-# Punishments Common
+# Punishment Service Common
 
-Shared models, DTOs, and config helpers for the Punishments service and clients.
+Shared models, DTOs, and config helpers for punishment-service clients.
 
 ## Catalog
 

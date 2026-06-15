@@ -6,22 +6,18 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import punishments.common.dto.ActorTypeDto
-import punishments.common.model.ActorType
+import punishments.common.model.TargetKind
 
-/**
- * Serializes Kotlin durations as seconds.
- */
-object ActorSerializer : KSerializer<ActorType> {
+object TargetKindSerializer : KSerializer<TargetKind> {
 
     override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("Actor", PrimitiveKind.STRING)
+        PrimitiveSerialDescriptor("TargetKind", PrimitiveKind.STRING)
 
-    override fun serialize(encoder: Encoder, value: ActorType) {
+    override fun serialize(encoder: Encoder, value: TargetKind) {
         encoder.encodeString(value.name)
     }
 
-    override fun deserialize(decoder: Decoder): ActorType {
-        return ActorTypeDto(decoder.decodeString())
+    override fun deserialize(decoder: Decoder): TargetKind {
+        return TargetKind.fromSerialized(decoder.decodeString())
     }
 }

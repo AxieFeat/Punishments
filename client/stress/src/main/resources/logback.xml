@@ -6,9 +6,9 @@
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/punishments-stress.log</file>
+        <file>logs/punishment-service-stress.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/punishments-stress.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>logs/punishment-service-stress.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
         </rollingPolicy>
         <encoder>
@@ -18,7 +18,8 @@
 
     <logger name="punishments.client.stress" level="INFO"/>
     <logger name="punishments.client.stress.metrics" level="INFO"/>
-    <logger name="punishments.client.stress.failures" level="DEBUG"/>
+    <logger name="punishments.client.stress.failures" level="WARN"/>
+    <logger name="punishments.client.common.network.GrpcPunishmentClient" level="ERROR"/>
     <logger name="io.grpc" level="WARN"/>
 
     <root level="INFO">

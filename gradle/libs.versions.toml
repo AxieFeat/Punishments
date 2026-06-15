@@ -15,6 +15,7 @@ flyway = "12.6.2"
 lettuce = "7.5.2.RELEASE"
 caffeine = "3.2.4"
 koin = "4.2.1"
+micrometer = "1.16.0"
 logback = "1.5.32"
 grpc = "1.81.0"
 grpc-kotlin = "1.5.0"
@@ -25,6 +26,9 @@ hocon-config = "1.4.3"
 shadow = "9.4.1"
 protobuf-plugin = "0.10.0"
 detekt = "1.23.8"
+mockk = "1.14.6"
+testcontainers = "1.21.3"
+junit-jupiter = "6.0.1"
 
 [libraries]
 
@@ -32,13 +36,18 @@ detekt = "1.23.8"
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 
 # Ktor
 ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }
 ktor-server-netty = { group = "io.ktor", name = "ktor-server-netty", version.ref = "ktor" }
 ktor-server-content-negotiation = { group = "io.ktor", name = "ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-server-metrics-micrometer = { group = "io.ktor", name = "ktor-server-metrics-micrometer", version.ref = "ktor" }
 ktor-server-call-logging = { group = "io.ktor", name = "ktor-server-call-logging", version.ref = "ktor" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 
 # Database
 exposed-core = { group = "org.jetbrains.exposed", name = "exposed-core", version.ref = "exposed" }
@@ -60,6 +69,9 @@ caffeine = { group = "com.github.ben-manes.caffeine", name = "caffeine", version
 koin-core = { group = "io.insert-koin", name = "koin-core", version.ref = "koin" }
 koin-ktor = { group = "io.insert-koin", name = "koin-ktor", version.ref = "koin" }
 
+# Metrics
+micrometer-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus", version.ref = "micrometer" }
+
 # Logging
 logback = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
 slf4j = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
@@ -76,6 +88,13 @@ annotations-api = { group = "org.apache.tomcat", name = "annotations-api", versi
 
 # Configuration
 hocon = { group = "com.typesafe", name = "config", version.ref = "hocon-config" }
+
+# Tests
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+testcontainers = { group = "org.testcontainers", name = "testcontainers", version.ref = "testcontainers" }
+testcontainers-junit-jupiter = { group = "org.testcontainers", name = "junit-jupiter", version.ref = "testcontainers" }
+testcontainers-postgresql = { group = "org.testcontainers", name = "postgresql", version.ref = "testcontainers" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 
 # Plugins (for build-logic)
 plugin-kotlin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }

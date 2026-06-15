@@ -16,6 +16,8 @@ service PunishmentService {
   rpc GetTargetPunishments (GetTargetPunishmentsProto) returns (PaginatedPunishmentsProto);
   rpc SearchPunishments (SearchPunishmentsProto) returns (PaginatedPunishmentsProto);
   rpc GetCatalog (GetCatalogProto) returns (ReasonCatalogProto);
+  rpc CheckTargetRestrictions (CheckTargetRestrictionsProto) returns (TargetRestrictionsProto);
+  rpc GetActiveRestrictions (GetActiveRestrictionsProto) returns (TargetRestrictionsProto);
 }
 
 // ─── Requests ────────────────────────────────────────────────────
@@ -29,12 +31,14 @@ message CreatePunishmentProto {
   optional int64 duration_seconds = 6;
   PunishmentActorProto issuer = 7;
   optional int64 issued_at_epoch_ms = 8;
+  optional string request_id = 9;
 }
 
 message RevokePunishmentProto {
   string punishment_id = 1;
   optional string reason = 2;
   PunishmentActorProto actor = 3;
+  optional string request_id = 4;
 }
 
 message GetPunishmentDetailsProto {
@@ -64,6 +68,17 @@ message SearchPunishmentsProto {
 
 message GetCatalogProto {
   optional string version = 1;
+}
+
+message CheckTargetRestrictionsProto {
+  repeated PunishmentTargetProto targets = 1;
+  repeated string restriction_keys = 2;
+  repeated string types = 3;
+}
+
+message GetActiveRestrictionsProto {
+  repeated PunishmentTargetProto targets = 1;
+  repeated string types = 2;
 }
 
 // ─── Responses ───────────────────────────────────────────────────
@@ -141,12 +156,26 @@ message ReasonCatalogProto {
   optional string version = 3;
 }
 
+message ActiveRestrictionProto {
+  string punishment_id = 1;
+  string type = 2;
+  PunishmentTargetProto target = 3;
+  repeated string restriction_keys = 4;
+  optional string reason_id = 5;
+  optional int64 expires_at_epoch_ms = 6;
+}
+
+message TargetRestrictionsProto {
+  bool restricted = 1;
+  repeated ActiveRestrictionProto restrictions = 2;
+}
+
 // ─── Shared Models ───────────────────────────────────────────────
 
 message PunishmentTargetProto {
   string id = 1;
   string name = 2;
-  string kind = 3;
+  string target_type = 3;
 }
 
 message TargetSelectionProto {

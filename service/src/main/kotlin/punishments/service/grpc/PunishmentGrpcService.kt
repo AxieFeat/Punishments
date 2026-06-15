@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory
 import punishments.common.error.PunishmentException
 import punishments.common.grpc.CreatePunishmentProto
 import punishments.common.grpc.CreatePunishmentResultProto
+import punishments.common.grpc.CheckTargetRestrictionsProto
+import punishments.common.grpc.GetActiveRestrictionsProto
 import punishments.common.grpc.GetCatalogProto
 import punishments.common.grpc.GetPunishmentDetailsProto
 import punishments.common.grpc.GetPunishmentsProto
@@ -17,6 +19,7 @@ import punishments.common.grpc.ReasonCatalogProto
 import punishments.common.grpc.RevokePunishmentProto
 import punishments.common.grpc.RevokePunishmentResultProto
 import punishments.common.grpc.SearchPunishmentsProto
+import punishments.common.grpc.TargetRestrictionsProto
 import punishments.common.protocol.PunishmentAPI
 import punishments.service.grpc.mapper.ProtoMapper.toDomain
 import punishments.service.grpc.mapper.ProtoMapper.toGrpcStatus
@@ -67,6 +70,18 @@ class PunishmentGrpcService(
     override suspend fun getCatalog(request: GetCatalogProto): ReasonCatalogProto {
         return handle("GetCatalog") {
             api.getCatalog(request.toDomain()).toProto()
+        }
+    }
+
+    override suspend fun checkTargetRestrictions(request: CheckTargetRestrictionsProto): TargetRestrictionsProto {
+        return handle("CheckTargetRestrictions") {
+            api.checkTargetRestrictions(request.toDomain()).toProto()
+        }
+    }
+
+    override suspend fun getActiveRestrictions(request: GetActiveRestrictionsProto): TargetRestrictionsProto {
+        return handle("GetActiveRestrictions") {
+            api.getActiveRestrictions(request.toDomain()).toProto()
         }
     }
 

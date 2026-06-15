@@ -46,6 +46,27 @@ interface PunishmentRepository {
     ): Boolean
 
     suspend fun expireDue(nowEpochMs: Long, limit: Int): List<PunishmentRecord>
+
+    suspend fun findActiveRestrictions(
+        targets: List<PunishmentTarget>,
+        types: Set<PunishmentType>,
+        restrictionKeys: Set<String>,
+        nowEpochMs: Long
+    ): List<ActiveRestrictionRecord>
+
+    suspend fun countActiveRestrictions(nowEpochMs: Long): Long
+
+    suspend fun releaseActiveRestrictions(punishmentId: UUID)
+
+    suspend fun findIdempotencyResult(operation: String, requestId: String, requestHash: String): String?
+
+    suspend fun storeIdempotencyResult(
+        operation: String,
+        requestId: String,
+        requestHash: String,
+        resultJson: String,
+        createdAtEpochMs: Long
+    )
 }
 
 data class RepositoryPage<T>(

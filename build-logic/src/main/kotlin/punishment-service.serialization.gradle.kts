@@ -3,7 +3,7 @@
  */
 
 plugins {
-    id("punishments.base")
+    id("punishment-service.base")
     kotlin("plugin.serialization")
 }
 

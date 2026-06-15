@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
  * For local publishing, -PpublishingVersion, -Pgpr.user and -Pgpr.key can be used.
  */
 if (!isPublishingSkipped()) {
-    pluginManager.apply("punishments.base")
+    pluginManager.apply("punishment-service.base")
     pluginManager.apply("maven-publish")
 
     val publishingVersion = providers.gradleProperty("publishingVersion")
@@ -22,7 +22,7 @@ if (!isPublishingSkipped()) {
 
     val githubRepository = providers.gradleProperty("githubRepository")
         .orElse(providers.environmentVariable("GITHUB_REPOSITORY"))
-        .orElse("AxieFeat/Punishments")
+        .orElse("AxieFeat/punishment-service")
 
     val githubActor = providers.gradleProperty("gpr.user")
         .orElse(providers.environmentVariable("GITHUB_ACTOR"))

@@ -1,69 +1,138 @@
 services:
+  envoy:
+    image: envoyproxy/envoy:v1.32-latest
+    container_name: punishment-service-envoy
+    ports:
+      - "8080:80"
+      - "9090:9090"
+      - "9901:9901"
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - punishment-service
+    restart: unless-stopped
+    networks:
+      - punishment-service
+
   postgres:
     image: postgres:16-alpine
-    container_name: punishments-postgres
+    container_name: punishment-service-postgres
     environment:
-      POSTGRES_DB: punishments
-      POSTGRES_USER: punishments
-      POSTGRES_PASSWORD: punishments
+      POSTGRES_DB: punishment_service
+      POSTGRES_USER: punishment_service
+      POSTGRES_PASSWORD: punishment_service
     ports:
       - "5432:5432"
     volumes:
-      - punishments-postgres-data:/var/lib/postgresql/data
+      - punishment-service-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U punishments -d punishments"]
+      test: ["CMD-SHELL", "pg_isready -U punishment_service -d punishment_service"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
-      - punishments
+      - punishment-service
 
   redis:
     image: redis:7-alpine
-    container_name: punishments-redis
+    container_name: punishment-service-redis
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - punishments-redis-data:/data
+      - punishment-service-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
     networks:
-      - punishments
+      - punishment-service
 
-  punishments-service:
-    image: punishments-service:latest
+  punishment-service:
+    image: punishment-service:latest
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: punishments-service
     environment:
-      DB_PRIMARY_URL: jdbc:postgresql://postgres:5432/punishments
-      DB_USERNAME: punishments
-      DB_PASSWORD: punishments
+      DB_PRIMARY_URL: jdbc:postgresql://postgres:5432/punishment_service
+      DB_USERNAME: punishment_service
+      DB_PASSWORD: punishment_service
+      DB_POOL_SIZE: "20"
       REDIS_NODES: redis://redis:6379
       HTTP_PORT: "8080"
       GRPC_PORT: "9090"
-      INSTANCE_ID: punishments-service
-    ports:
-      - "8080:8080"
-      - "9090:9090"
+      JAVA_OPTS: >-
+        -Xms512m
+        -Xmx1024m
+        -XX:+UseZGC
+        -XX:+ZGenerational
+        -XX:+AlwaysPreTouch
+        -XX:+UseStringDeduplication
+        -XX:-OmitStackTraceInFastThrow
+        -Dio.netty.allocator.maxCachedBufferCapacity=65536
+        -Dio.netty.recycler.maxCapacityPerThread=4096
+        -Djava.security.egd=file:/dev/./urandom
+    expose:
+      - "8080"
+      - "9090"
+    deploy:
+      replicas: ${REPLICAS:-1}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     networks:
-      - punishments
+      - punishment-service
+
+  prometheus:
+    image: prom/prometheus:v3.3.1
+    container_name: punishment-service-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - punishment-service-prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    networks:
+      - punishment-service
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: punishment-service-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: punishment-service
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - punishment-service-grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - punishment-service
 
 volumes:
-  punishments-postgres-data:
-  punishments-redis-data:
+  punishment-service-postgres-data:
+  punishment-service-redis-data:
+  punishment-service-prometheus-data:
+  punishment-service-grafana-data:
 
 networks:
-  punishments:
-    name: punishments
+  punishment-service:
+    name: punishment-service

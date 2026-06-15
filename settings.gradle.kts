@@ -2,7 +2,7 @@
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Punishments"
+rootProject.name = "punishment-service"
 
 dependencyResolutionManagement {
     repositoriesMode = RepositoriesMode.PREFER_SETTINGS

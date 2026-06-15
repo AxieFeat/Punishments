@@ -1,7 +1,9 @@
 package punishments.service.grpc.mapper
 
 import io.grpc.Status
+import punishments.common.dto.request.CheckTargetRestrictionsRequest
 import punishments.common.dto.request.CreatePunishmentRequest
+import punishments.common.dto.request.GetActiveRestrictionsRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
@@ -14,11 +16,15 @@ import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
+import punishments.common.dto.response.ActiveRestrictionResponse
+import punishments.common.dto.response.TargetRestrictionsResponse
 import punishments.common.error.ErrorCode
 import punishments.common.error.PunishmentException
 import punishments.common.grpc.CreatePunishmentProto
 import punishments.common.grpc.CreatePunishmentResultProto
+import punishments.common.grpc.CheckTargetRestrictionsProto
 import punishments.common.grpc.GetCatalogProto
+import punishments.common.grpc.GetActiveRestrictionsProto
 import punishments.common.grpc.GetPunishmentDetailsProto
 import punishments.common.grpc.GetPunishmentsProto
 import punishments.common.grpc.GetTargetPunishmentsProto
@@ -34,7 +40,9 @@ import punishments.common.grpc.ReasonCatalogProto
 import punishments.common.grpc.RevokePunishmentProto
 import punishments.common.grpc.RevokePunishmentResultProto
 import punishments.common.grpc.SearchPunishmentsProto
+import punishments.common.grpc.TargetRestrictionsProto
 import punishments.common.grpc.TargetSelectionProto
+import punishments.common.grpc.activeRestrictionProto
 import punishments.common.grpc.createPunishmentResultProto
 import punishments.common.grpc.paginatedPunishmentsProto
 import punishments.common.grpc.punishmentActorProto
@@ -46,7 +54,8 @@ import punishments.common.grpc.punishmentSummaryProto
 import punishments.common.grpc.punishmentTargetProto
 import punishments.common.grpc.reasonCatalogProto
 import punishments.common.grpc.revokePunishmentResultProto
-import punishments.common.model.ActorSourceType
+import punishments.common.grpc.targetRestrictionsProto
+import punishments.common.model.ActorSource
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentCapability
 import punishments.common.model.PunishmentReason
@@ -55,9 +64,8 @@ import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
 import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
-import punishments.common.model.TargetType
+import punishments.common.model.TargetKind
 import punishments.common.model.TargetSelection
-import punishments.common.dto.ActorTypeDto
 import java.util.UUID
 import kotlin.time.Instant
 
@@ -72,7 +80,8 @@ object ProtoMapper {
             reasonText = optionalString(hasReasonText(), reasonText),
             durationSeconds = if (hasDurationSeconds()) durationSeconds else null,
             issuer = if (hasIssuer()) issuer.toDomain() else missingActor(),
-            issuedAt = if (hasIssuedAtEpochMs()) Instant.fromEpochMilliseconds(issuedAtEpochMs) else null
+            issuedAt = if (hasIssuedAtEpochMs()) Instant.fromEpochMilliseconds(issuedAtEpochMs) else null,
+            requestId = optionalString(hasRequestId(), requestId)
         )
     }
 
@@ -80,7 +89,8 @@ object ProtoMapper {
         return RevokePunishmentRequest(
             punishmentId = UUID.fromString(punishmentId),
             reason = optionalString(hasReason(), reason),
-            actor = if (hasActor()) actor.toDomain() else missingActor()
+            actor = if (hasActor()) actor.toDomain() else missingActor(),
+            requestId = optionalString(hasRequestId(), requestId)
         )
     }
 
@@ -117,6 +127,21 @@ object ProtoMapper {
 
     fun GetCatalogProto.toDomain(): GetCatalogRequest {
         return GetCatalogRequest(version = optionalString(hasVersion(), version))
+    }
+
+    fun CheckTargetRestrictionsProto.toDomain(): CheckTargetRestrictionsRequest {
+        return CheckTargetRestrictionsRequest(
+            targets = targetsList.map { target -> target.toDomain() },
+            restrictionKeys = restrictionKeysList.toSet(),
+            types = typesList.map { value -> enumValue<PunishmentType>(value, "types") }.toSet()
+        )
+    }
+
+    fun GetActiveRestrictionsProto.toDomain(): GetActiveRestrictionsRequest {
+        return GetActiveRestrictionsRequest(
+            targets = targetsList.map { target -> target.toDomain() },
+            types = typesList.map { value -> enumValue<PunishmentType>(value, "types") }.toSet()
+        )
     }
 
     fun CreatePunishmentResult.toProto(): CreatePunishmentResultProto {
@@ -185,6 +210,13 @@ object ProtoMapper {
         }
     }
 
+    fun TargetRestrictionsResponse.toProto(): TargetRestrictionsProto {
+        return targetRestrictionsProto {
+            restricted = this@toProto.restricted
+            restrictions.addAll(this@toProto.restrictions.map { restriction -> restriction.toProto() })
+        }
+    }
+
     fun PunishmentException.toGrpcStatus(): Status {
         return when (errorCode) {
             ErrorCode.PUNISHMENT_NOT_FOUND,
@@ -194,6 +226,7 @@ object ProtoMapper {
             ErrorCode.PUNISHMENT_ALREADY_ACTIVE -> Status.ALREADY_EXISTS
             ErrorCode.INVALID_SCOPE,
             ErrorCode.INVALID_REQUEST -> Status.INVALID_ARGUMENT
+            ErrorCode.AUTHENTICATION_FAILED -> Status.UNAUTHENTICATED
             ErrorCode.INTERNAL_ERROR -> Status.INTERNAL
         }.withDescription(message)
     }
@@ -209,7 +242,7 @@ object ProtoMapper {
         return PunishmentTarget(
             id = id.uuidOrNull(),
             name = name.takeIf(String::isNotBlank),
-            kind = if(kind.isNotBlank()) ActorTypeDto(kind) else TargetType.UNKNOWN
+            targetType = if (targetType.isNotBlank()) TargetKind.custom(targetType) else TargetKind.UNKNOWN
         )
     }
 
@@ -221,7 +254,7 @@ object ProtoMapper {
         return PunishmentActor(
             id = id.uuidOrNull(),
             name = name,
-            source = if(source.isNotBlank()) ActorTypeDto(source) else ActorSourceType.SYSTEM
+            source = if (source.isNotBlank()) ActorSource.custom(source) else ActorSource.SYSTEM
         )
     }
 
@@ -229,7 +262,7 @@ object ProtoMapper {
         return punishmentTargetProto {
             id = this@toProto.id?.toString().orEmpty()
             name = this@toProto.name.orEmpty()
-            kind = this@toProto.kind.name
+            targetType = this@toProto.targetType.name
         }
     }
 
@@ -279,6 +312,15 @@ object ProtoMapper {
             this@toProto.description?.let { description = it }
             appliesTo.addAll(this@toProto.appliesTo.map(PunishmentType::name))
         }
+    }
+
+    private fun ActiveRestrictionResponse.toProto() = activeRestrictionProto {
+        punishmentId = this@toProto.punishmentId.toString()
+        type = this@toProto.type.name
+        target = this@toProto.target.toProto()
+        restrictionKeys.addAll(this@toProto.restrictionKeys)
+        this@toProto.reasonId?.let { reasonId = it }
+        this@toProto.expiresAt?.let { expiresAtEpochMs = it.toEpochMilliseconds() }
     }
 
     private fun optionalString(hasValue: Boolean, value: String): String? {

@@ -4,6 +4,13 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import org.slf4j.LoggerFactory
 import punishments.client.common.config.ClientConfig
+import punishments.common.dto.request.CreatePunishmentRequest
+import punishments.common.model.PunishmentActor
+import punishments.common.model.PunishmentScope
+import punishments.common.model.PunishmentTarget
+import punishments.common.model.PunishmentType
+import punishments.common.model.TargetSelection
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 

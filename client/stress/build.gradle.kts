@@ -1,5 +1,5 @@
 plugins {
-    id("punishments.service")
+    id("punishment-service.service")
 }
 
 dependencies {
@@ -18,6 +18,8 @@ dependencies {
 
     // CLI args parsing
     implementation(libs.kotlinx.serialization.json)
+
+    testImplementation(kotlin("test"))
 }
 
 application {

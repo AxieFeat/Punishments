@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import punishments.service.config.AppConfig
 import punishments.service.grpc.interceptor.AuthInterceptor
 import punishments.service.grpc.interceptor.LoggingInterceptor
+import punishments.service.grpc.interceptor.MetricsInterceptor
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -14,7 +15,8 @@ class PunishmentGrpcServer(
     private val appConfig: AppConfig,
     private val service: PunishmentGrpcService,
     private val authInterceptor: AuthInterceptor,
-    private val loggingInterceptor: LoggingInterceptor
+    private val loggingInterceptor: LoggingInterceptor,
+    private val metricsInterceptor: MetricsInterceptor
 ) {
 
     private val logger = LoggerFactory.getLogger(PunishmentGrpcServer::class.java)
@@ -30,6 +32,7 @@ class PunishmentGrpcServer(
     fun start() {
         server = NettyServerBuilder.forPort(appConfig.grpcPort)
             .addService(service)
+            .intercept(metricsInterceptor)
             .intercept(loggingInterceptor)
             .intercept(authInterceptor)
             .executor(executor)

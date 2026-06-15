@@ -10,10 +10,12 @@ import punishments.common.serialization.ContextualUUID
  * @property punishmentId Unique identifier of the punishment to revoke. You can receive it via [GetPunishmentsRequest] or [GetTargetPunishmentsRequest] by providing some identifier of target.
  * @property reason Optional reason for revoking the punishment. This can be used for auditing purposes.
  * @property actor The actor who is revoking the punishment. This can be a player, console, or any other entity capable of revoking punishments.
+ * @property requestId Optional idempotency key. Reusing the same key with the same request returns the stored revoke result, which makes client or Envoy retries safe.
  */
 @Serializable
 data class RevokePunishmentRequest(
     val punishmentId: ContextualUUID,
     val reason: String? = null,
-    val actor: PunishmentActor
+    val actor: PunishmentActor,
+    val requestId: String? = null
 )

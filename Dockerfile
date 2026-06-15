@@ -25,23 +25,20 @@ RUN ./gradlew :service:shadowJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
-RUN addgroup -S punishments && adduser -S punishments -G punishments
+RUN addgroup -S punishment && adduser -S punishment -G punishment
 
 WORKDIR /app
 
-COPY --from=build /project/service/build/libs/service-*.jar app.jar
+COPY --from=build /project/service/build/libs/punishment-service-*.jar app.jar
 
-RUN chown -R punishments:punishments /app
-USER punishments
+RUN chown -R punishment:punishment /app
+USER punishment
+
+ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseZGC -XX:+ZGenerational -XX:+AlwaysPreTouch -XX:+UseStringDeduplication -XX:-OmitStackTraceInFastThrow -Dio.netty.allocator.maxCachedBufferCapacity=65536 -Dio.netty.recycler.maxCapacityPerThread=4096 -Djava.security.egd=file:/dev/./urandom"
 
 EXPOSE 8080 9090
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
     CMD wget -qO- http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["java", \
-    "-XX:+UseG1GC", \
-    "-XX:MaxGCPauseMillis=200", \
-    "-XX:+UseStringDeduplication", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

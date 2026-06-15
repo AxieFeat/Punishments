@@ -1,7 +1,10 @@
 package punishments.service.domain.service
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import punishments.common.dto.request.CheckTargetRestrictionsRequest
 import punishments.common.dto.request.CreatePunishmentRequest
+import punishments.common.dto.request.GetActiveRestrictionsRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
 import punishments.common.dto.request.GetPunishmentsRequest
@@ -10,18 +13,20 @@ import punishments.common.dto.request.RevokePunishmentRequest
 import punishments.common.dto.request.SearchPunishmentsRequest
 import punishments.common.dto.response.CreatePunishmentResult
 import punishments.common.dto.response.PaginatedResponse
+import punishments.common.dto.response.ActiveRestrictionResponse
 import punishments.common.dto.response.PunishmentResponse
 import punishments.common.dto.response.PunishmentSummaryResponse
 import punishments.common.dto.response.ReasonCatalogResponse
 import punishments.common.dto.response.RevokePunishmentResult
+import punishments.common.dto.response.TargetRestrictionsResponse
 import punishments.common.error.ErrorCode
-import punishments.common.error.PunishmentAlreadyActiveException
 import punishments.common.error.PunishmentAlreadyRevokedException
 import punishments.common.error.PunishmentException
 import punishments.common.error.PunishmentNotFoundException
 import punishments.common.event.EventMetadata
 import punishments.common.event.PunishmentEvent
 import punishments.common.model.PunishmentCatalog
+import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentHistoryEntry
 import punishments.common.model.PunishmentHistoryType
 import punishments.common.model.PunishmentRecord
@@ -32,9 +37,8 @@ import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
 import punishments.common.protocol.PunishmentAPI
-import punishments.common.config.PunishmentDefaults
 import punishments.service.cache.CacheKeys
-import punishments.service.cache.PunishmentCache
+import punishments.service.cache.TieredPunishmentCache
 import punishments.service.config.AppConfig
 import punishments.service.config.PunishmentServiceConfig
 import punishments.service.domain.mapper.toResponse
@@ -42,111 +46,158 @@ import punishments.service.domain.mapper.toSummary
 import punishments.service.domain.validation.InvalidPunishmentRequestException
 import punishments.service.domain.validation.PunishmentValidator
 import punishments.service.messaging.RedisEventPublisher
+import punishments.service.metrics.CacheFamily
+import punishments.service.metrics.CacheTier
+import punishments.service.metrics.PunishmentMetrics
+import punishments.service.persistence.repository.ActiveRestrictionRecord
+import punishments.service.persistence.repository.impl.ActiveRestrictionConflictException
 import punishments.service.persistence.repository.PunishmentRepository
 import punishments.service.persistence.repository.RepositoryPage
+import punishments.common.util.TargetKeys
+import punishments.common.util.ValidationUtils
 import java.util.UUID
 import kotlin.math.ceil
 import kotlin.time.Instant
 
+/**
+ * Application service that separates command, query and enforcement semantics on top
+ * of one public API contract.
+ *
+ * Commands use DB transactions and idempotency for retry safety. Enforcement reads
+ * use strict cache policies with DB fallback, while list/search/catalog APIs may use
+ * bounded-stale cache entries for operator-facing UI workloads.
+ */
 class PunishmentDomainService(
     private val repository: PunishmentRepository,
     private val catalog: PunishmentCatalog,
     private val validator: PunishmentValidator,
-    private val cache: PunishmentCache,
+    private val cache: TieredPunishmentCache,
     private val events: RedisEventPublisher,
-    private val expirationService: ExpirationService,
     private val appConfig: AppConfig,
     private val serviceConfig: PunishmentServiceConfig,
-    private val json: Json
+    private val json: Json,
+    private val metrics: PunishmentMetrics? = null
 ) : PunishmentAPI {
 
     override suspend fun createPunishment(request: CreatePunishmentRequest): CreatePunishmentResult {
         return try {
-            expirationService.processExpired()
-            val reasonId = validator.normalizeReasonId(request.reasonId)
-            val targets = validator.normalizeTargets(request.selection)
-            validator.validateActor(request.issuer)
-            validator.validateDuration(request.durationSeconds)
+            idempotentCommand(
+                operation = "create",
+                requestId = request.requestId,
+                request = request,
+                decode = { payload -> json.decodeFromString<CreatePunishmentResult>(payload) },
+                encode = { result -> json.encodeToString(result) }
+            ) {
+                try {
+                    val reasonId = validator.normalizeReasonId(request.reasonId)
+                    val reasonText = ValidationUtils.normalizeReasonText(request.reasonText)
+                    val targets = validator.normalizeTargets(request.selection)
+                    val issuer = validator.normalizeActor(request.issuer)
+                    validator.validateDuration(request.durationSeconds)
 
-            val issuedAt = request.issuedAt ?: now()
-            val scope = validator.effectiveScope(request.scope, request.type, reasonId)
-            ensureNoActiveConflicts(request.type, targets, issuedAt.toEpochMilliseconds())
+                    val issuedAt = request.issuedAt ?: now()
+                    val scope = validator.effectiveScope(request.scope, request.type, reasonId)
 
-            val record = PunishmentRecord(
-                id = UUID.randomUUID(),
-                type = request.type,
-                status = request.type.initialStatus(),
-                targets = targets,
-                scope = scope,
-                reasonId = reasonId,
-                reasonText = request.reasonText?.takeIf(String::isNotBlank),
-                issuedBy = request.issuer,
-                issuedAt = issuedAt,
-                expiresAt = request.type.expiresAt(issuedAt, request.durationSeconds)
-            )
+                    val record = PunishmentRecord(
+                        id = UUID.randomUUID(),
+                        type = request.type,
+                        status = request.type.initialStatus(),
+                        targets = targets,
+                        scope = scope,
+                        reasonId = reasonId,
+                        reasonText = reasonText,
+                        issuedBy = issuer,
+                        issuedAt = issuedAt,
+                        expiresAt = request.type.expiresAt(issuedAt, request.durationSeconds)
+                    )
 
-            repository.insert(
-                record = record,
-                selection = TargetSelection(selector = request.selection.selector, targets = targets),
-                historyEntry = PunishmentHistoryEntry(
-                    punishmentId = record.id,
-                    type = PunishmentHistoryType.CREATED,
-                    actor = request.issuer,
-                    timestamp = issuedAt
-                )
-            )
-            cache.invalidateAll()
-            events.publish(record.createdEvent(request.selection.selector))
-            CreatePunishmentResult.Success(listOf(record.id))
-        } catch (e: PunishmentException) {
-            CreatePunishmentResult.Error(e.errorCode, e.message)
+                    // Active BAN/MUTE conflicts are protected by the repository's unique
+                    // active restriction insert, not by a pre-read that could race.
+                    repository.insert(
+                        record = record,
+                        selection = TargetSelection(selector = request.selection.selector, targets = targets),
+                        historyEntry = PunishmentHistoryEntry(
+                            punishmentId = record.id,
+                            type = PunishmentHistoryType.CREATED,
+                            actor = issuer,
+                            timestamp = issuedAt
+                        )
+                    )
+                    invalidateAfterMutation(record)
+                    events.publish(record.createdEvent(request.selection.selector))
+                    metrics?.punishmentsCreated?.increment(record.targets.size.toDouble())
+                    CreatePunishmentResult.Success(listOf(record.id))
+                } catch (e: ActiveRestrictionConflictException) {
+                    CreatePunishmentResult.Error(ErrorCode.PUNISHMENT_ALREADY_ACTIVE, e.message ?: "Active punishment already exists")
+                } catch (e: PunishmentException) {
+                    CreatePunishmentResult.Error(e.errorCode, e.message)
+                } catch (e: IllegalArgumentException) {
+                    CreatePunishmentResult.Error(ErrorCode.INVALID_REQUEST, e.message ?: "Invalid request")
+                } catch (e: Exception) {
+                    CreatePunishmentResult.Error(ErrorCode.INTERNAL_ERROR, e.message ?: "Internal error")
+                }
+            }
         } catch (e: IllegalArgumentException) {
             CreatePunishmentResult.Error(ErrorCode.INVALID_REQUEST, e.message ?: "Invalid request")
-        } catch (e: Exception) {
-            CreatePunishmentResult.Error(ErrorCode.INTERNAL_ERROR, e.message ?: "Internal error")
         }
     }
 
     override suspend fun revokePunishment(request: RevokePunishmentRequest): RevokePunishmentResult {
         return try {
-            expirationService.processExpired()
-            validator.validateActor(request.actor)
-            val record = repository.getById(request.punishmentId)
-                ?: throw PunishmentNotFoundException(request.punishmentId.toString())
+            idempotentCommand(
+                operation = "revoke",
+                requestId = request.requestId,
+                request = request,
+                decode = { payload -> json.decodeFromString<RevokePunishmentResult>(payload) },
+                encode = { result -> json.encodeToString(result) }
+            ) {
+                try {
+                    val actor = validator.normalizeActor(request.actor)
+                    val reason = ValidationUtils.normalizeReasonText(request.reason)
+                    val record = repository.getById(request.punishmentId)
+                        ?: throw PunishmentNotFoundException(request.punishmentId.toString())
 
-            when (record.status) {
-                PunishmentStatus.REVOKED -> throw PunishmentAlreadyRevokedException(record.id.toString())
-                PunishmentStatus.EXPIRED -> throw InvalidPunishmentRequestException("Expired punishment cannot be revoked")
-                PunishmentStatus.ACTIVE -> revokeActive(request, record)
+                    when (record.status) {
+                        PunishmentStatus.REVOKED -> throw PunishmentAlreadyRevokedException(record.id.toString())
+                        PunishmentStatus.EXPIRED -> throw InvalidPunishmentRequestException("Expired punishment cannot be revoked")
+                        PunishmentStatus.ACTIVE -> revokeActive(request, record, actor, reason)
+                    }
+                } catch (e: PunishmentException) {
+                    RevokePunishmentResult.Error(e.errorCode, e.message)
+                } catch (e: IllegalArgumentException) {
+                    RevokePunishmentResult.Error(ErrorCode.INVALID_REQUEST, e.message ?: "Invalid request")
+                } catch (e: Exception) {
+                    RevokePunishmentResult.Error(ErrorCode.INTERNAL_ERROR, e.message ?: "Internal error")
+                }
             }
-        } catch (e: PunishmentException) {
-            RevokePunishmentResult.Error(e.errorCode, e.message)
         } catch (e: IllegalArgumentException) {
             RevokePunishmentResult.Error(ErrorCode.INVALID_REQUEST, e.message ?: "Invalid request")
-        } catch (e: Exception) {
-            RevokePunishmentResult.Error(ErrorCode.INTERNAL_ERROR, e.message ?: "Internal error")
         }
     }
 
     override suspend fun getPunishmentDetails(request: GetPunishmentDetailsRequest): PunishmentResponse? {
-        expirationService.processExpired()
         val cacheKey = CacheKeys.punishment(request.punishmentId.toString())
-        cache.get(cacheKey)?.let { cached ->
+        val revisionKey = CacheKeys.punishmentRevision(request.punishmentId.toString())
+        cache.getStrictDetails(cacheKey, revisionKey)?.let { cached ->
             return json.decodeFromString<PunishmentResponse>(cached)
         }
 
-        val response = repository.getById(request.punishmentId)?.toResponse() ?: return null
-        cache.put(cacheKey, json.encodeToString(response))
+        val response = repository.getById(request.punishmentId)?.toResponse()
+        if (response == null) {
+            metrics?.cacheTierMiss(CacheFamily.STRICT_DETAILS, CacheTier.L3)
+            return null
+        }
+        cache.putStrictDetails(cacheKey, revisionKey, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.STRICT_DETAILS, CacheTier.L3)
         return response
     }
 
     override suspend fun getPunishments(
         request: GetPunishmentsRequest
     ): PaginatedResponse<PunishmentSummaryResponse> {
-        expirationService.processExpired()
         val normalized = request.normalized()
         val cacheKey = CacheKeys.list(normalized)
-        cache.get(cacheKey)?.let { cached ->
+        cache.getListing(cacheKey)?.let { cached ->
             return json.decodeFromString<PaginatedResponse<PunishmentSummaryResponse>>(cached)
         }
 
@@ -158,84 +209,142 @@ class PunishmentDomainService(
             page = normalized.page,
             pageSize = normalized.pageSize
         ).toResponse(normalized.page, normalized.pageSize)
-        cache.put(cacheKey, json.encodeToString(page))
+        cache.putListing(cacheKey, json.encodeToString(page))
+        metrics?.cacheTierHit(CacheFamily.BOUNDED_LISTINGS, CacheTier.L3)
         return page
     }
 
     override suspend fun getTargetPunishments(
         request: GetTargetPunishmentsRequest
     ): PaginatedResponse<PunishmentSummaryResponse> {
-        expirationService.processExpired()
-        val page = request.page.coerceAtLeast(0)
-        val pageSize = request.pageSize.normalizedPageSize()
-        if (request.targets.isEmpty()) {
+        val page = ValidationUtils.normalizePage(request.page)
+        val pageSize = ValidationUtils.normalizePageSize(request.pageSize)
+        val targets = ValidationUtils.normalizeTargets(request.targets)
+        if (targets.isEmpty()) {
             return emptyPage(page, pageSize)
         }
 
-        val cacheKey = CacheKeys.targetList(request.targets, page, pageSize)
-        cache.get(cacheKey)?.let { cached ->
+        val cacheKey = CacheKeys.targetList(targets, page, pageSize)
+        cache.getListing(cacheKey)?.let { cached ->
             return json.decodeFromString<PaginatedResponse<PunishmentSummaryResponse>>(cached)
         }
 
         val response = repository.list(
-            targets = request.targets,
+            targets = targets,
             type = null,
             status = null,
             sort = PunishmentSort.NEWEST,
             page = page,
             pageSize = pageSize
         ).toResponse(page, pageSize)
-        cache.put(cacheKey, json.encodeToString(response))
+        cache.putListing(cacheKey, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.BOUNDED_LISTINGS, CacheTier.L3)
         return response
     }
 
     override suspend fun searchPunishments(
         request: SearchPunishmentsRequest
     ): PaginatedResponse<PunishmentSummaryResponse> {
-        expirationService.processExpired()
-        val query = request.query.trim()
-        val page = request.page.coerceAtLeast(0)
-        val pageSize = request.pageSize.normalizedPageSize()
+        val query = ValidationUtils.normalizeSearchQuery(request.query)
+        val page = ValidationUtils.normalizePage(request.page)
+        val pageSize = ValidationUtils.normalizePageSize(request.pageSize)
         if (query.isBlank()) {
             return emptyPage(page, pageSize)
         }
 
         val cacheKey = CacheKeys.search(query, page, pageSize)
-        cache.get(cacheKey)?.let { cached ->
+        cache.getSearch(cacheKey)?.let { cached ->
             return json.decodeFromString<PaginatedResponse<PunishmentSummaryResponse>>(cached)
         }
 
         val response = repository.search(query, page, pageSize).toResponse(page, pageSize)
-        cache.put(cacheKey, json.encodeToString(response))
+        cache.putSearch(cacheKey, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.BOUNDED_SEARCH, CacheTier.L3)
         return response
     }
 
     override suspend fun getCatalog(request: GetCatalogRequest): ReasonCatalogResponse {
         val version = request.version ?: serviceConfig.catalogVersion
         val cacheKey = CacheKeys.catalog(version)
-        cache.get(cacheKey)?.let { cached ->
+        cache.getCatalog(cacheKey)?.let { cached ->
             return json.decodeFromString<ReasonCatalogResponse>(cached)
         }
 
         val response = ReasonCatalogResponse(catalog = catalog, version = version)
-        cache.put(cacheKey, json.encodeToString(response))
+        cache.putCatalog(cacheKey, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.CATALOG, CacheTier.L3)
+        return response
+    }
+
+    override suspend fun checkTargetRestrictions(request: CheckTargetRestrictionsRequest): TargetRestrictionsResponse {
+        metrics?.enforcementChecks?.increment()
+        val targets = ValidationUtils.normalizeTargets(request.targets)
+        val restrictionKeys = ValidationUtils.normalizeRestrictionKeys(request.restrictionKeys)
+        if (targets.isEmpty()) {
+            return TargetRestrictionsResponse(restricted = false, restrictions = emptyList())
+        }
+
+        val cacheKey = CacheKeys.activeRestrictions(targets, request.types, restrictionKeys)
+        val revisionKeys = targetRevisionKeys(targets)
+        cache.getStrictTargetActive(cacheKey, revisionKeys)?.let { cached ->
+            val response = json.decodeFromString<TargetRestrictionsResponse>(cached)
+            if (response.restricted) metrics?.enforcementRestricted?.increment()
+            return response
+        }
+
+        val response = repository.findActiveRestrictions(
+            targets = targets,
+            types = request.types,
+            restrictionKeys = restrictionKeys,
+            nowEpochMs = System.currentTimeMillis()
+        ).toRestrictionsResponse()
+        // Enforcement never treats cache/Redis failure as "not restricted"; the DB is
+        // authoritative and the explicit response is cached only after it is loaded.
+        cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.STRICT_TARGET_ACTIVE, CacheTier.L3)
+        if (response.restricted) metrics?.enforcementRestricted?.increment()
+        return response
+    }
+
+    override suspend fun getActiveRestrictions(request: GetActiveRestrictionsRequest): TargetRestrictionsResponse {
+        val targets = ValidationUtils.normalizeTargets(request.targets)
+        if (targets.isEmpty()) {
+            return TargetRestrictionsResponse(restricted = false, restrictions = emptyList())
+        }
+
+        val cacheKey = CacheKeys.activeRestrictions(targets, request.types, emptySet())
+        val revisionKeys = targetRevisionKeys(targets)
+        cache.getStrictTargetActive(cacheKey, revisionKeys)?.let { cached ->
+            return json.decodeFromString<TargetRestrictionsResponse>(cached)
+        }
+
+        val response = repository.findActiveRestrictions(
+            targets = targets,
+            types = request.types,
+            restrictionKeys = emptySet(),
+            nowEpochMs = System.currentTimeMillis()
+        ).toRestrictionsResponse()
+        cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        metrics?.cacheTierHit(CacheFamily.STRICT_TARGET_ACTIVE, CacheTier.L3)
         return response
     }
 
     private suspend fun revokeActive(
         request: RevokePunishmentRequest,
-        record: PunishmentRecord
+        record: PunishmentRecord,
+        actor: PunishmentActor,
+        reason: String?
     ): RevokePunishmentResult {
         val revokedAt = now()
         val revoked = repository.revoke(
             id = request.punishmentId,
-            actor = request.actor,
+            actor = actor,
             revokedAtEpochMs = revokedAt.toEpochMilliseconds(),
             historyEntry = PunishmentHistoryEntry(
                 punishmentId = request.punishmentId,
                 type = PunishmentHistoryType.REVOKED,
-                actor = request.actor,
-                note = request.reason?.takeIf(String::isNotBlank),
+                actor = actor,
+                note = reason,
                 timestamp = revokedAt
             )
         )
@@ -244,34 +353,17 @@ class PunishmentDomainService(
             throw InvalidPunishmentRequestException("Punishment is no longer active")
         }
 
-        cache.invalidate(CacheKeys.punishment(record.id.toString()))
-        cache.invalidateAll()
+        invalidateAfterMutation(record)
         events.publish(
             PunishmentEvent.PunishmentRevoked(
                 metadata = EventMetadata(sourceServer = appConfig.instanceId),
                 punishmentId = record.id,
-                actor = request.actor,
-                reason = request.reason
+                actor = actor,
+                reason = reason
             )
         )
+        metrics?.punishmentsRevoked?.increment()
         return RevokePunishmentResult.Success()
-    }
-
-    private suspend fun ensureNoActiveConflicts(
-        type: PunishmentType,
-        targets: List<PunishmentTarget>,
-        nowEpochMs: Long
-    ) {
-        if (!type.hasActiveRestriction()) {
-            return
-        }
-
-        targets.forEach { target ->
-            val conflictId = repository.findActiveConflict(type, target, nowEpochMs)
-            if (conflictId != null) {
-                throw PunishmentAlreadyActiveException(conflictId.toString())
-            }
-        }
     }
 
     private fun PunishmentRecord.createdEvent(selector: String?): PunishmentEvent.PunishmentCreated {
@@ -283,6 +375,66 @@ class PunishmentDomainService(
             reasonId = reasonId,
             actor = issuedBy
         )
+    }
+
+    private suspend fun invalidateAfterMutation(record: PunishmentRecord) {
+        cache.invalidatePunishment(record.id.toString())
+        cache.invalidateTargets(targetRevisionKeys(record.targets))
+        cache.invalidateBoundedReads()
+        refreshActiveRestrictionGauge()
+    }
+
+    private suspend fun refreshActiveRestrictionGauge() {
+        metrics?.setActiveRestrictions(repository.countActiveRestrictions(System.currentTimeMillis()))
+    }
+
+    private fun targetRevisionKeys(targets: List<PunishmentTarget>): List<String> {
+        return targets
+            .map { target -> CacheKeys.targetRevision(TargetKeys.normalized(target)) }
+            .distinct()
+    }
+
+    private fun List<ActiveRestrictionRecord>.toRestrictionsResponse(): TargetRestrictionsResponse {
+        val restrictions = map { record ->
+            ActiveRestrictionResponse(
+                punishmentId = record.punishmentId,
+                type = record.type,
+                target = record.target,
+                restrictionKeys = record.restrictionKeys,
+                reasonId = record.reasonId,
+                expiresAt = record.expiresAtEpochMs?.let(Instant::fromEpochMilliseconds)
+            )
+        }
+        return TargetRestrictionsResponse(restricted = restrictions.isNotEmpty(), restrictions = restrictions)
+    }
+
+    private suspend inline fun <reified Request, Result> idempotentCommand(
+        operation: String,
+        requestId: String?,
+        request: Request,
+        decode: (String) -> Result,
+        encode: (Result) -> String,
+        block: suspend () -> Result
+    ): Result {
+        val normalizedRequestId = ValidationUtils.normalizeRequestId(requestId)
+        if (normalizedRequestId == null) {
+            return block()
+        }
+
+        val requestHash = CacheKeys.run { json.encodeToString(request).sha256() }
+        repository.findIdempotencyResult(operation, normalizedRequestId, requestHash)?.let { payload ->
+            return decode(payload)
+        }
+
+        val result = block()
+        repository.storeIdempotencyResult(
+            operation = operation,
+            requestId = normalizedRequestId,
+            requestHash = requestHash,
+            resultJson = encode(result),
+            createdAtEpochMs = System.currentTimeMillis()
+        )
+        return result
     }
 
     private fun RepositoryPage<PunishmentSummaryRecord>.toResponse(
@@ -300,13 +452,10 @@ class PunishmentDomainService(
 
     private fun GetPunishmentsRequest.normalized(): GetPunishmentsRequest {
         return copy(
-            page = page.coerceAtLeast(0),
-            pageSize = pageSize.normalizedPageSize()
+            targets = ValidationUtils.normalizeTargets(targets),
+            page = ValidationUtils.normalizePage(page),
+            pageSize = ValidationUtils.normalizePageSize(pageSize)
         )
-    }
-
-    private fun Int.normalizedPageSize(): Int {
-        return coerceIn(1, PunishmentDefaults.PAGE_SIZE)
     }
 
     private fun emptyPage(page: Int, pageSize: Int): PaginatedResponse<PunishmentSummaryResponse> {
@@ -334,10 +483,6 @@ class PunishmentDomainService(
             return null
         }
         return durationSeconds?.let { seconds -> issuedAt.plusSeconds(seconds) }
-    }
-
-    private fun PunishmentType.hasActiveRestriction(): Boolean {
-        return this == PunishmentType.BAN || this == PunishmentType.MUTE
     }
 
     private companion object {

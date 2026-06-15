@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Quick rebuild and restart of the Punishments service container.
+    Quick rebuild and restart of the punishment-service container.
 
 .DESCRIPTION
     Fast mode builds the shadowJar locally, then builds a small Docker image
@@ -9,20 +9,30 @@
 .PARAMETER Full
     Force a full Docker build using Dockerfile.
 
+.PARAMETER Replicas
+    Number of punishment-service replicas to run. Default: 1.
+
 .EXAMPLE
     .\deploy.ps1
     .\deploy.ps1 -Full
+    .\deploy.ps1 -Replicas 3
 #>
 param(
-    [switch]$Full
+    [switch]$Full,
+    [int]$Replicas = 1
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
+if ($Replicas -lt 1) {
+    Write-Host "ERROR: Replicas must be at least 1" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host ""
 Write-Host "=============================="
-Write-Host "  Punishments Deploy Script"
+Write-Host "  Punishment Service Deploy Script"
 Write-Host "=============================="
 Write-Host ""
 
@@ -55,15 +65,15 @@ function Resolve-JavaHome {
     return $null
 }
 
-Write-Host "[1/4] Starting infrastructure (Postgres + Redis)..."
-docker compose up -d postgres redis
+Write-Host "[1/4] Starting infrastructure (Postgres + Redis + Prometheus + Grafana)..."
+docker compose up -d postgres redis prometheus grafana
 
 Write-Host "      Waiting for Postgres health..."
 $retries = 0
 do {
     Start-Sleep -Seconds 2
     $retries++
-    $health = docker inspect --format="{{.State.Health.Status}}" punishments-postgres 2>$null
+    $health = docker inspect --format="{{.State.Health.Status}}" punishment-service-postgres 2>$null
 } while ($health -ne "healthy" -and $retries -lt 30)
 
 if ($health -ne "healthy") {
@@ -81,7 +91,8 @@ if ($resolvedJava) {
 
 if ($Full) {
     Write-Host "[2/4] Full Docker build..."
-    docker compose up -d --build --force-recreate punishments-service
+    $env:REPLICAS = $Replicas
+    docker compose up -d --build --force-recreate --scale punishment-service=$Replicas punishment-service envoy prometheus grafana
     Write-Host "[3/4] Skipped in full mode."
     Write-Host "[4/4] Done."
 } else {
@@ -92,7 +103,7 @@ if ($Full) {
         exit 1
     }
 
-    $jarPath = "service\build\libs\service-1.0.jar"
+    $jarPath = "service\build\libs\punishment-service-1.0.jar"
     if (-not (Test-Path $jarPath)) {
         Write-Host "ERROR: JAR not found at $jarPath" -ForegroundColor Red
         exit 1
@@ -102,19 +113,26 @@ if ($Full) {
     Write-Host "      JAR ready: $jarPath ($jarSize MB)"
 
     Write-Host "[3/4] Building Docker image (fast mode)..."
-    docker compose -f docker-compose.yml -f docker-compose.fast.yml build punishments-service
+    docker compose -f docker-compose.yml -f docker-compose.fast.yml build punishment-service
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Docker build failed" -ForegroundColor Red
         exit 1
     }
 
-    Write-Host "[4/4] Restarting Punishments service..."
-    docker compose -f docker-compose.yml -f docker-compose.fast.yml up -d --force-recreate punishments-service
+    Write-Host "[4/4] Restarting punishment-service ($Replicas replica(s)) + Envoy..."
+    $env:REPLICAS = $Replicas
+    docker compose -f docker-compose.yml -f docker-compose.fast.yml up -d --force-recreate --no-deps --scale punishment-service=$Replicas punishment-service envoy
+    docker compose -f docker-compose.yml -f docker-compose.fast.yml up -d prometheus grafana
 }
 
 Write-Host ""
-Write-Host "Punishments service is deployed."
+Write-Host "punishment-service is deployed."
 Write-Host "  HTTP health: http://localhost:8080/health"
+Write-Host "  Metrics:     http://localhost:8080/metrics"
 Write-Host "  gRPC:        localhost:9090"
-Write-Host "  Logs:        docker compose logs -f punishments-service"
+Write-Host "  Envoy admin: http://localhost:9901"
+Write-Host "  Prometheus:  http://localhost:9091"
+Write-Host "  Grafana:     http://localhost:3000 (admin/punishment-service)"
+Write-Host "  Logs:        docker compose logs -f punishment-service"
+Write-Host "  Scale:       .\deploy.ps1 -Replicas 3"
 Write-Host ""

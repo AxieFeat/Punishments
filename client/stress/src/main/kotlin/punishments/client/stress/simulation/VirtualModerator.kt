@@ -1,11 +1,16 @@
 package punishments.client.stress.simulation
 
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
-import punishments.client.common.network.GrpcPunishmentClient
 import punishments.client.stress.config.StressTestConfig
+import punishments.client.stress.config.WorkloadProfile
 import punishments.client.stress.logging.FailureDebugLogger
 import punishments.client.stress.metrics.MetricsCollector
+import punishments.client.stress.metrics.OperationEvent
+import punishments.common.dto.request.CheckTargetRestrictionsRequest
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetCatalogRequest
 import punishments.common.dto.request.GetPunishmentDetailsRequest
@@ -16,247 +21,396 @@ import punishments.common.dto.request.SearchPunishmentsRequest
 import punishments.common.dto.response.CreatePunishmentResult
 import punishments.common.dto.response.RevokePunishmentResult
 import punishments.common.error.ErrorCode
-import punishments.common.model.ActorSourceType
+import punishments.common.model.ActorSource
 import punishments.common.model.PunishmentActor
 import punishments.common.model.PunishmentScope
 import punishments.common.model.PunishmentSort
 import punishments.common.model.PunishmentStatus
+import punishments.common.model.PunishmentTarget
 import punishments.common.model.PunishmentType
 import punishments.common.model.TargetSelection
+import java.time.Instant
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
 class VirtualModerator(
+    private val runId: String,
     private val identity: VirtualModeratorIdentity,
-    private val behavior: BehaviorType,
-    private val api: GrpcPunishmentClient,
+    private val api: StressApiAdapter,
     private val sharedState: SharedSimulationState,
     private val metrics: MetricsCollector,
-    private val config: StressTestConfig
+    private val config: StressTestConfig,
+    private val pageDistribution: ExponentialPageDistribution
 ) {
-    private val actor = PunishmentActor(id = identity.uuid, name = identity.name, source = ActorSourceType.STAFF)
+    private val actor = PunishmentActor(
+        id = identity.uuid,
+        name = identity.name,
+        source = ActorSource.STAFF
+    )
 
-    suspend fun runUntil(deadlineMs: Long) {
-        while (coroutineContext.isActive && System.currentTimeMillis() < deadlineMs) {
-            val action = selectAction()
-            try {
-                when (action) {
-                    Action.GET_CATALOG -> getCatalog()
-                    Action.LIST_PUNISHMENTS -> listPunishments()
-                    Action.GET_TARGET_PUNISHMENTS -> getTargetPunishments()
-                    Action.SEARCH_PUNISHMENTS -> searchPunishments()
-                    Action.VIEW_PUNISHMENT -> viewPunishment()
-                    Action.CREATE_PUNISHMENT -> createPunishment()
-                    Action.REVOKE_PUNISHMENT -> revokePunishment()
-                }
-            } catch (e: Exception) {
-                metrics.record(action.operationName, false, 0)
-                FailureDebugLogger.logException(
-                    operation = action.operationName,
-                    throwable = e,
-                    message = "[${identity.name}] action ${action.name} failed: ${e.message}"
-                )
+    suspend fun run(loadState: StateFlow<RuntimeLoadState>) {
+        while (coroutineContext.isActive && !loadState.value.completed) {
+            val state = loadState.value
+            if (!state.isActive(identity.workerIndex)) {
+                delay(IDLE_POLL_MS)
+                continue
             }
 
-            delay(getActionDelay())
+            when (selectOperation()) {
+                Operation.GET_CATALOG -> getCatalog(state)
+                Operation.LIST_PUNISHMENTS -> listPunishments(state)
+                Operation.GET_TARGET_PUNISHMENTS -> getTargetPunishments(state)
+                Operation.SEARCH_PUNISHMENTS -> searchPunishments(state)
+                Operation.VIEW_PUNISHMENT -> viewPunishment(state)
+                Operation.CREATE_PUNISHMENT -> createPunishment(state, hotTarget = false)
+                Operation.REVOKE_PUNISHMENT -> revokePunishment(state)
+                Operation.ENFORCE_HOT_TARGET -> enforceHotTarget(state)
+            }
+
+            delay(thinkTimeMs())
         }
     }
 
-    private suspend fun getCatalog() {
-        val (response, latency) = timed { api.getCatalog(GetCatalogRequest()) }
-        sharedState.catalog = response.catalog
-        metrics.record("get_catalog", true, latency)
+    private suspend fun getCatalog(state: RuntimeLoadState) {
+        when (val execution = api.execute { getCatalog(GetCatalogRequest()) }) {
+            is ApiExecution.Success -> {
+                sharedState.catalog = execution.value.catalog
+                record(state, Operation.GET_CATALOG, true, execution.latencyMs, execution.retries)
+            }
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.GET_CATALOG, execution)
+        }
     }
 
-    private suspend fun listPunishments() {
+    private suspend fun listPunishments(state: RuntimeLoadState) {
         val request = GetPunishmentsRequest(
             type = randomTypeOrNull(),
             status = randomStatusOrNull(),
             sort = PunishmentSort.entries.random(),
-            page = pickRealisticPage(),
+            page = pageDistribution.pick(),
             pageSize = config.pageSize
         )
-        val (response, latency) = timed { api.getPunishments(request) }
-        sharedState.rememberPunishments(response.items)
-        metrics.record("list_punishments", true, latency)
+        when (val execution = api.execute { getPunishments(request) }) {
+            is ApiExecution.Success -> {
+                sharedState.rememberPunishments(execution.value.items)
+                record(state, Operation.LIST_PUNISHMENTS, true, execution.latencyMs, execution.retries)
+            }
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.LIST_PUNISHMENTS, execution)
+        }
     }
 
-    private suspend fun getTargetPunishments() {
+    private suspend fun getTargetPunishments(state: RuntimeLoadState) {
         val targets = sharedState.randomTargets(Random.nextInt(1, 4)).ifEmpty {
-            listOf(sharedState.nextSyntheticTarget())
+            listOf(sharedState.nextSyntheticTarget(identity.serverId))
         }
         val request = GetTargetPunishmentsRequest(
             targets = targets,
-            page = pickRealisticPage(),
+            page = pageDistribution.pick(),
             pageSize = config.pageSize
         )
-        val (response, latency) = timed { api.getTargetPunishments(request) }
-        sharedState.rememberPunishments(response.items)
-        metrics.record("get_target_punishments", true, latency)
+        when (val execution = api.execute { getTargetPunishments(request) }) {
+            is ApiExecution.Success -> {
+                sharedState.rememberPunishments(execution.value.items)
+                record(state, Operation.GET_TARGET_PUNISHMENTS, true, execution.latencyMs, execution.retries)
+            }
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.GET_TARGET_PUNISHMENTS, execution)
+        }
     }
 
-    private suspend fun searchPunishments() {
-        val query = sharedState.knownQueries().random()
+    private suspend fun searchPunishments(state: RuntimeLoadState) {
         val request = SearchPunishmentsRequest(
-            query = query,
-            page = pickRealisticPage(),
+            query = sharedState.pickSearchQuery(),
+            page = pageDistribution.pick(),
             pageSize = config.pageSize
         )
-        val (response, latency) = timed { api.searchPunishments(request) }
-        sharedState.rememberPunishments(response.items)
-        metrics.record("search_punishments", true, latency)
+        when (val execution = api.execute { searchPunishments(request) }) {
+            is ApiExecution.Success -> {
+                sharedState.rememberPunishments(execution.value.items)
+                record(state, Operation.SEARCH_PUNISHMENTS, true, execution.latencyMs, execution.retries)
+            }
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.SEARCH_PUNISHMENTS, execution)
+        }
     }
 
-    private suspend fun viewPunishment() {
-        val summary = sharedState.randomPunishment() ?: return
-        val (response, latency) = timed { api.getPunishmentDetails(GetPunishmentDetailsRequest(summary.id)) }
-        metrics.record("view_punishment", response != null, latency)
-        if (response == null) {
-            sharedState.removePunishment(summary.id)
-            FailureDebugLogger.logFailure(
-                operation = "view_punishment",
-                signature = "not_found",
-                message = "[${identity.name}] getPunishment returned null"
-            )
+    private suspend fun viewPunishment(state: RuntimeLoadState) {
+        val summary = sharedState.randomPunishment()
+        if (summary == null) {
+            listPunishments(state)
             return
         }
-        sharedState.rememberPunishment(response)
+        when (val execution = api.execute { getPunishmentDetails(GetPunishmentDetailsRequest(summary.id)) }) {
+            is ApiExecution.Success -> {
+                val response = execution.value
+                if (response == null) {
+                    sharedState.removePunishment(summary.id)
+                    record(state, Operation.VIEW_PUNISHMENT, false, execution.latencyMs, execution.retries, "NOT_FOUND")
+                    FailureDebugLogger.logFailure(
+                        operation = Operation.VIEW_PUNISHMENT.metricName,
+                        signature = "null-response",
+                        message = "[${identity.name}] getPunishmentDetails returned null"
+                    )
+                } else {
+                    sharedState.rememberPunishment(response)
+                    record(state, Operation.VIEW_PUNISHMENT, true, execution.latencyMs, execution.retries)
+                }
+            }
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.VIEW_PUNISHMENT, execution)
+        }
     }
 
-    private suspend fun createPunishment() {
-        val target = if (Random.nextDouble() < 0.8) {
-            sharedState.nextSyntheticTarget()
+    private suspend fun createPunishment(state: RuntimeLoadState, hotTarget: Boolean) {
+        val target = if (hotTarget) {
+            sharedState.hotTarget(identity.serverId)
         } else {
-            sharedState.randomTarget() ?: sharedState.nextSyntheticTarget()
+            sharedState.pickCreateTarget(identity.serverId, config.hotTargetShare)
         }
-        val type = when (behavior) {
-            BehaviorType.OBSERVER -> PunishmentType.WARN
-            BehaviorType.MODERATOR -> listOf(
-                PunishmentType.MUTE,
-                PunishmentType.BAN,
-                PunishmentType.WARN,
-                PunishmentType.KICK
-            ).random()
-            BehaviorType.AUDITOR -> PunishmentType.WARN
-            BehaviorType.CHAOTIC -> PunishmentType.entries.random()
-            BehaviorType.AFK -> PunishmentType.WARN
-        }
-        val durationSeconds = when (type) {
-            PunishmentType.WARN -> null
-            PunishmentType.MUTE -> listOf(300L, 900L, 3_600L, 21_600L).random()
-            PunishmentType.BAN -> listOf(3_600L, 86_400L, 604_800L).random()
-            PunishmentType.KICK -> null
-        }
+        val type = selectPunishmentType(hotTarget)
         val reasonId = sharedState.compatibleReasonIds(type).randomOrNull()
-        val scope = resolveScope(type, reasonId)
+        val reasonText = reasonId ?: "stress-${config.profile.cliName}"
+        val durationSeconds = resolveDuration(type, reasonId)
         val request = CreatePunishmentRequest(
             type = type,
             selection = TargetSelection(selector = target.name, targets = listOf(target)),
-            scope = scope,
+            scope = resolveScope(type, reasonId),
             reasonId = reasonId,
-            reasonText = if (reasonId == null) "stress test" else null,
+            reasonText = if (reasonId == null) reasonText else null,
             durationSeconds = durationSeconds,
             issuer = actor
         )
 
-        val (result, latency) = timed { api.createPunishment(request) }
-        val success = result is CreatePunishmentResult.Success
-        metrics.record("create_punishment", success, latency)
+        val operation = if (hotTarget) Operation.ENFORCE_HOT_TARGET else Operation.CREATE_PUNISHMENT
+        when (val execution = api.execute { createPunishment(request) }) {
+            is ApiExecution.Success -> {
+                when (val result = execution.value) {
+                    is CreatePunishmentResult.Success -> {
+                        result.createdIds.forEach { id ->
+                            sharedState.rememberPunishment(
+                                sharedState.newSummary(
+                                    id = id,
+                                    type = type,
+                                    targets = listOf(target),
+                                    reasonId = reasonId,
+                                    reasonText = if (reasonId == null) reasonText else null,
+                                    durationSeconds = durationSeconds,
+                                    issuedBy = actor
+                                )
+                            )
+                        }
+                        record(state, operation, true, execution.latencyMs, execution.retries)
+                    }
 
-        when (result) {
-            is CreatePunishmentResult.Success -> {
-                metrics.incrementCounter("created_punishments", result.createdIds.size.toLong())
-                result.createdIds.forEach { id ->
-                    sharedState.rememberPunishment(
-                        sharedState.newSummary(id, type, listOf(target), reasonId, durationSeconds, actor)
-                    )
+                    is CreatePunishmentResult.Error -> {
+                        record(
+                            state = state,
+                            operation = operation,
+                            success = false,
+                            latencyMs = execution.latencyMs,
+                            retries = execution.retries,
+                            errorCode = result.code.name
+                        )
+                        FailureDebugLogger.logFailure(
+                            operation = operation.metricName,
+                            signature = "${result.code}:${result.message}",
+                            message = "[${identity.name}] create failed: ${result.code} - ${result.message}"
+                        )
+                    }
                 }
             }
-            is CreatePunishmentResult.Error -> {
-                FailureDebugLogger.logFailure(
-                    operation = "create_punishment",
-                    signature = "${result.code}:${result.message}",
-                    message = "[${identity.name}] create failed: ${result.code} - ${result.message}"
-                )
-            }
+
+            is ApiExecution.Failure -> recordFailure(state, operation, execution)
         }
     }
 
-    private suspend fun revokePunishment() {
-        val summary = sharedState.claimPunishmentForRevocation() ?: return
+    private suspend fun revokePunishment(state: RuntimeLoadState) {
+        val summary = sharedState.claimPunishmentForRevocation()
+        if (summary == null) {
+            listPunishments(state)
+            return
+        }
+
         try {
             val request = RevokePunishmentRequest(
                 punishmentId = summary.id,
                 reason = "stress revoke",
                 actor = actor
             )
-            val (result, latency) = timed { api.revokePunishment(request) }
-            val success = result is RevokePunishmentResult.Success
-            metrics.record("revoke_punishment", success, latency)
+            when (val execution = api.execute { revokePunishment(request) }) {
+                is ApiExecution.Success -> {
+                    when (val result = execution.value) {
+                        is RevokePunishmentResult.Success -> {
+                            sharedState.updatePunishmentStatus(summary.id, PunishmentStatus.REVOKED)
+                            record(state, Operation.REVOKE_PUNISHMENT, true, execution.latencyMs, execution.retries)
+                        }
 
-            when (result) {
-                is RevokePunishmentResult.Success -> sharedState.updatePunishmentStatus(summary.id, PunishmentStatus.REVOKED)
-                is RevokePunishmentResult.Error -> {
-                    handleRevokeFailure(summary.id, result)
-                    FailureDebugLogger.logFailure(
-                        operation = "revoke_punishment",
-                        signature = "${result.code}:${result.message}",
-                        message = "[${identity.name}] revoke failed: ${result.code} - ${result.message}"
-                    )
+                        is RevokePunishmentResult.Error -> {
+                            handleRevokeFailure(summary.id, result)
+                            record(
+                                state = state,
+                                operation = Operation.REVOKE_PUNISHMENT,
+                                success = false,
+                                latencyMs = execution.latencyMs,
+                                retries = execution.retries,
+                                errorCode = result.code.name
+                            )
+                            FailureDebugLogger.logFailure(
+                                operation = Operation.REVOKE_PUNISHMENT.metricName,
+                                signature = "${result.code}:${result.message}",
+                                message = "[${identity.name}] revoke failed: ${result.code} - ${result.message}"
+                            )
+                        }
+                    }
                 }
+
+                is ApiExecution.Failure -> recordFailure(state, Operation.REVOKE_PUNISHMENT, execution)
             }
         } finally {
             sharedState.releaseRevocationClaim(summary.id)
         }
     }
 
-    private fun selectAction(): Action {
-        val weights = when (behavior) {
-            BehaviorType.OBSERVER -> mapOf(
-                Action.LIST_PUNISHMENTS to 25,
-                Action.GET_TARGET_PUNISHMENTS to 20,
-                Action.SEARCH_PUNISHMENTS to 20,
-                Action.VIEW_PUNISHMENT to 20,
-                Action.GET_CATALOG to 10,
-                Action.CREATE_PUNISHMENT to 3,
-                Action.REVOKE_PUNISHMENT to 2
+    private suspend fun enforceHotTarget(state: RuntimeLoadState) {
+        val target = sharedState.hotTarget(identity.serverId)
+        val request = CheckTargetRestrictionsRequest(
+            targets = listOf(target),
+            types = setOf(PunishmentType.BAN, PunishmentType.MUTE)
+        )
+        when (val execution = api.execute { checkTargetRestrictions(request) }) {
+            is ApiExecution.Success -> record(
+                state = state,
+                operation = Operation.ENFORCE_HOT_TARGET,
+                success = true,
+                latencyMs = execution.latencyMs,
+                retries = execution.retries,
+                errorCode = if (execution.value.restricted) "RESTRICTED" else null
             )
-            BehaviorType.MODERATOR -> mapOf(
-                Action.CREATE_PUNISHMENT to 28,
-                Action.REVOKE_PUNISHMENT to 18,
-                Action.LIST_PUNISHMENTS to 16,
-                Action.SEARCH_PUNISHMENTS to 12,
-                Action.VIEW_PUNISHMENT to 12,
-                Action.GET_TARGET_PUNISHMENTS to 8,
-                Action.GET_CATALOG to 6
+
+            is ApiExecution.Failure -> recordFailure(state, Operation.ENFORCE_HOT_TARGET, execution)
+        }
+    }
+
+
+    private fun selectOperation(): Operation {
+        val weights = when (config.profile) {
+            WorkloadProfile.OBSERVER -> mapOf(
+                Operation.LIST_PUNISHMENTS to 28,
+                Operation.GET_TARGET_PUNISHMENTS to 22,
+                Operation.SEARCH_PUNISHMENTS to 20,
+                Operation.VIEW_PUNISHMENT to 18,
+                Operation.GET_CATALOG to 10,
+                Operation.CREATE_PUNISHMENT to 1,
+                Operation.REVOKE_PUNISHMENT to 1
             )
-            BehaviorType.AUDITOR -> mapOf(
-                Action.LIST_PUNISHMENTS to 20,
-                Action.GET_TARGET_PUNISHMENTS to 20,
-                Action.SEARCH_PUNISHMENTS to 20,
-                Action.VIEW_PUNISHMENT to 15,
-                Action.GET_CATALOG to 15,
-                Action.REVOKE_PUNISHMENT to 7,
-                Action.CREATE_PUNISHMENT to 3
+
+            WorkloadProfile.MODERATION -> mapOf(
+                Operation.CREATE_PUNISHMENT to 26,
+                Operation.REVOKE_PUNISHMENT to 18,
+                Operation.LIST_PUNISHMENTS to 16,
+                Operation.SEARCH_PUNISHMENTS to 12,
+                Operation.VIEW_PUNISHMENT to 12,
+                Operation.GET_TARGET_PUNISHMENTS to 8,
+                Operation.GET_CATALOG to 8
             )
-            BehaviorType.CHAOTIC -> mapOf(
-                Action.CREATE_PUNISHMENT to 22,
-                Action.REVOKE_PUNISHMENT to 18,
-                Action.LIST_PUNISHMENTS to 14,
-                Action.GET_TARGET_PUNISHMENTS to 12,
-                Action.SEARCH_PUNISHMENTS to 12,
-                Action.VIEW_PUNISHMENT to 12,
-                Action.GET_CATALOG to 10
+
+            WorkloadProfile.AUDIT -> mapOf(
+                Operation.LIST_PUNISHMENTS to 24,
+                Operation.GET_TARGET_PUNISHMENTS to 20,
+                Operation.SEARCH_PUNISHMENTS to 18,
+                Operation.VIEW_PUNISHMENT to 16,
+                Operation.GET_CATALOG to 12,
+                Operation.REVOKE_PUNISHMENT to 6,
+                Operation.CREATE_PUNISHMENT to 4
             )
-            BehaviorType.AFK -> mapOf(
-                Action.GET_CATALOG to 30,
-                Action.LIST_PUNISHMENTS to 25,
-                Action.VIEW_PUNISHMENT to 20,
-                Action.SEARCH_PUNISHMENTS to 15,
-                Action.GET_TARGET_PUNISHMENTS to 10
+
+            WorkloadProfile.REVOKE_HEAVY -> mapOf(
+                Operation.REVOKE_PUNISHMENT to 30,
+                Operation.LIST_PUNISHMENTS to 18,
+                Operation.GET_TARGET_PUNISHMENTS to 14,
+                Operation.VIEW_PUNISHMENT to 12,
+                Operation.SEARCH_PUNISHMENTS to 10,
+                Operation.CREATE_PUNISHMENT to 10,
+                Operation.GET_CATALOG to 6
+            )
+
+            WorkloadProfile.CHAOS -> mapOf(
+                Operation.CREATE_PUNISHMENT to 20,
+                Operation.ENFORCE_HOT_TARGET to 16,
+                Operation.REVOKE_PUNISHMENT to 14,
+                Operation.LIST_PUNISHMENTS to 12,
+                Operation.GET_TARGET_PUNISHMENTS to 12,
+                Operation.SEARCH_PUNISHMENTS to 10,
+                Operation.VIEW_PUNISHMENT to 10,
+                Operation.GET_CATALOG to 6
+            )
+
+            WorkloadProfile.ENFORCEMENT_HEAVY -> mapOf(
+                Operation.ENFORCE_HOT_TARGET to 34,
+                Operation.CREATE_PUNISHMENT to 20,
+                Operation.REVOKE_PUNISHMENT to 14,
+                Operation.LIST_PUNISHMENTS to 10,
+                Operation.GET_TARGET_PUNISHMENTS to 8,
+                Operation.SEARCH_PUNISHMENTS to 6,
+                Operation.VIEW_PUNISHMENT to 4,
+                Operation.GET_CATALOG to 4
             )
         }
         return weightedRandom(weights)
+    }
+
+    private fun thinkTimeMs(): Long {
+        return when (config.profile) {
+            WorkloadProfile.OBSERVER -> Random.nextLong(1_000L, 3_500L)
+            WorkloadProfile.MODERATION -> Random.nextLong(350L, 1_500L)
+            WorkloadProfile.AUDIT -> Random.nextLong(800L, 2_200L)
+            WorkloadProfile.REVOKE_HEAVY -> Random.nextLong(250L, 1_100L)
+            WorkloadProfile.CHAOS -> Random.nextLong(80L, 600L)
+            WorkloadProfile.ENFORCEMENT_HEAVY -> Random.nextLong(120L, 800L)
+        }
+    }
+
+    private fun selectPunishmentType(hotTarget: Boolean): PunishmentType {
+        val hotWeights = listOf(PunishmentType.MUTE, PunishmentType.BAN, PunishmentType.WARN, PunishmentType.KICK)
+        return when (config.profile) {
+            WorkloadProfile.OBSERVER -> PunishmentType.WARN
+            WorkloadProfile.MODERATION -> hotWeights.random()
+            WorkloadProfile.AUDIT -> PunishmentType.WARN
+            WorkloadProfile.REVOKE_HEAVY -> listOf(PunishmentType.MUTE, PunishmentType.BAN, PunishmentType.WARN).random()
+            WorkloadProfile.CHAOS -> PunishmentType.entries.random()
+            WorkloadProfile.ENFORCEMENT_HEAVY -> if (hotTarget) hotWeights.random() else listOf(
+                PunishmentType.MUTE,
+                PunishmentType.BAN
+            ).random()
+        }
+    }
+
+    private fun resolveDuration(type: PunishmentType, reasonId: String?): Long? {
+        if (type == PunishmentType.WARN || type == PunishmentType.KICK) {
+            return null
+        }
+        return sharedState.recommendedDurationSeconds(reasonId) ?: when (type) {
+            PunishmentType.MUTE -> listOf(300L, 900L, 3_600L, 21_600L).random()
+            PunishmentType.BAN -> listOf(3_600L, 86_400L, 604_800L).random()
+            PunishmentType.WARN, PunishmentType.KICK -> null
+        }
+    }
+
+    private fun resolveScope(type: PunishmentType, reasonId: String?): PunishmentScope {
+        if (type == PunishmentType.KICK) {
+            return PunishmentScope()
+        }
+        val recommended = reasonId?.let(sharedState::recommendedScopeKeys).orEmpty()
+        if (recommended.isNotEmpty()) {
+            return PunishmentScope(recommended)
+        }
+        val available = sharedState.compatibleScopeKeys(type).toList()
+        if (available.isEmpty()) {
+            return PunishmentScope()
+        }
+        val selectionSize = Random.nextInt(1, available.size + 1)
+        return PunishmentScope(available.shuffled().take(selectionSize).toSet())
     }
 
     private fun randomTypeOrNull(): PunishmentType? {
@@ -265,63 +419,6 @@ class VirtualModerator(
 
     private fun randomStatusOrNull(): PunishmentStatus? {
         return if (Random.nextDouble() < 0.45) PunishmentStatus.entries.random() else null
-    }
-
-    private fun pickRealisticPage(): Int {
-        if (config.maxBrowsePage <= 0) {
-            return 0
-        }
-
-        val lambda = 0.55
-        val raw = -kotlin.math.ln(1.0 - Random.nextDouble()) / lambda
-        return raw.toInt().coerceIn(0, config.maxBrowsePage)
-    }
-
-    private fun getActionDelay(): Long {
-        return when (behavior) {
-            BehaviorType.OBSERVER -> Random.nextLong(1_500L, 5_000L)
-            BehaviorType.MODERATOR -> Random.nextLong(500L, 2_500L)
-            BehaviorType.AUDITOR -> Random.nextLong(1_000L, 4_000L)
-            BehaviorType.CHAOTIC -> Random.nextLong(100L, 1_200L)
-            BehaviorType.AFK -> Random.nextLong(5_000L, 20_000L)
-        }
-    }
-
-    private fun <T> weightedRandom(weights: Map<T, Int>): T {
-        val totalWeight = weights.values.sum()
-        var value = Random.nextInt(totalWeight)
-        for ((item, weight) in weights) {
-            value -= weight
-            if (value < 0) {
-                return item
-            }
-        }
-        return weights.keys.first()
-    }
-
-    private suspend fun <T> timed(block: suspend () -> T): Pair<T, Long> {
-        val start = System.nanoTime()
-        val result = block()
-        val elapsed = (System.nanoTime() - start) / 1_000_000
-        return result to elapsed
-    }
-
-    private fun resolveScope(type: PunishmentType, reasonId: String?): PunishmentScope {
-        if (type == PunishmentType.KICK) {
-            return PunishmentScope()
-        }
-
-        if (reasonId != null) {
-            return PunishmentScope(sharedState.recommendedScopeKeys(reasonId))
-        }
-
-        val allowedKeys = sharedState.compatibleScopeKeys(type).toList()
-        if (allowedKeys.isEmpty()) {
-            return PunishmentScope()
-        }
-
-        val selectionSize = Random.nextInt(1, allowedKeys.size + 1)
-        return PunishmentScope(allowedKeys.shuffled().take(selectionSize).toSet())
     }
 
     private fun handleRevokeFailure(
@@ -333,23 +430,84 @@ class VirtualModerator(
                 punishmentId,
                 PunishmentStatus.REVOKED
             )
+
             ErrorCode.PUNISHMENT_NOT_FOUND -> sharedState.removePunishment(punishmentId)
             ErrorCode.INVALID_REQUEST -> {
                 if (result.message.contains("no longer active", ignoreCase = true)) {
                     sharedState.markPunishmentNonActive(punishmentId)
                 }
             }
+
             else -> Unit
         }
     }
 
-    private enum class Action(val operationName: String) {
+    private fun weightedRandom(weights: Map<Operation, Int>): Operation {
+        val totalWeight = weights.values.sum()
+        var value = Random.nextInt(totalWeight)
+        for ((item, weight) in weights) {
+            value -= weight
+            if (value < 0) {
+                return item
+            }
+        }
+        return weights.keys.first()
+    }
+
+    private fun record(
+        state: RuntimeLoadState,
+        operation: Operation,
+        success: Boolean,
+        latencyMs: Long,
+        retries: Int,
+        errorCode: String? = null
+    ) {
+        metrics.record(
+            OperationEvent(
+                runId = runId,
+                timestamp = Instant.now().toString(),
+                phase = state.phase,
+                serverId = identity.serverId,
+                clientName = identity.name,
+                profile = config.profile.cliName,
+                operation = operation.metricName,
+                success = success,
+                latencyMs = latencyMs,
+                retries = retries,
+                errorCode = errorCode
+            )
+        )
+    }
+
+    private fun recordFailure(state: RuntimeLoadState, operation: Operation, failure: ApiExecution.Failure) {
+        record(
+            state = state,
+            operation = operation,
+            success = false,
+            latencyMs = failure.latencyMs,
+            retries = failure.retries,
+            errorCode = failure.errorCode
+        )
+        FailureDebugLogger.logException(
+            operation = operation.metricName,
+            throwable = failure.throwable,
+            message = "[${identity.name}] ${operation.metricName} failed: code=${failure.errorCode}, " +
+                "latency=${failure.latencyMs}ms, retries=${failure.retries}, message=${failure.throwable.message}"
+        )
+    }
+
+    private enum class Operation(val metricName: String) {
         GET_CATALOG("get_catalog"),
         LIST_PUNISHMENTS("list_punishments"),
         GET_TARGET_PUNISHMENTS("get_target_punishments"),
         SEARCH_PUNISHMENTS("search_punishments"),
         VIEW_PUNISHMENT("view_punishment"),
         CREATE_PUNISHMENT("create_punishment"),
-        REVOKE_PUNISHMENT("revoke_punishment")
+        REVOKE_PUNISHMENT("revoke_punishment"),
+        ENFORCE_HOT_TARGET("enforce_hot_target")
+    }
+
+    private companion object {
+        const val IDLE_POLL_MS = 200L
     }
 }

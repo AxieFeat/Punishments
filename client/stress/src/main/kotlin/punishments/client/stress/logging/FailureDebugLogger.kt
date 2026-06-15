@@ -22,14 +22,17 @@ object FailureDebugLogger {
     ) {
         val key = "$operation|${normalizeSignature(signature)}"
         val count = seenFailures.computeIfAbsent(key) { AtomicLong() }.incrementAndGet()
-        if (count != 1L) {
+        if (count != 1L && count % REPEAT_LOG_INTERVAL != 0L) {
             return
         }
 
-        if (throwable == null) {
-            logger.debug("[{}] {}", operation, message)
+        if (count == 1L) {
+            logger.warn("[{}] {}", operation, message)
+            if (throwable != null) {
+                logger.debug("[{}] stacktrace for first occurrence", operation, throwable)
+            }
         } else {
-            logger.debug("[{}] {}", operation, message, throwable)
+            logger.warn("[{}] repeated {} times: {}", operation, count, message)
         }
     }
 
@@ -41,4 +44,6 @@ object FailureDebugLogger {
     private fun normalizeSignature(signature: String): String {
         return uuidPattern.replace(signature, "<uuid>")
     }
+
+    private const val REPEAT_LOG_INTERVAL = 100L
 }

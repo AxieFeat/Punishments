@@ -3,7 +3,7 @@
  */
 
 plugins {
-    id("punishments.serialization")
+    id("punishment-service.serialization")
     id("com.google.protobuf")
 }
 

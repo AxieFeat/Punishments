@@ -1,7 +1,7 @@
 plugins {
-    id("punishments.protobuf")
-    id("punishments.detekt")
-    id("punishments.publishing")
+    id("punishment-service.protobuf")
+    id("punishment-service.detekt")
+    id("punishment-service.publishing")
 }
 
 dependencies {

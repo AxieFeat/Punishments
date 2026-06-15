@@ -8,15 +8,17 @@ import punishments.service.grpc.PunishmentGrpcServer
 import punishments.service.grpc.PunishmentGrpcService
 import punishments.service.grpc.interceptor.AuthInterceptor
 import punishments.service.grpc.interceptor.LoggingInterceptor
+import punishments.service.grpc.interceptor.MetricsInterceptor
 import punishments.service.scheduling.ExpirationScheduler
 
 val serviceModule = module {
-    single { ExpirationService(get(), get(), get(), get()) }
+    single { ExpirationService(get(), get(), get(), get(), get()) }
     single { PunishmentDomainService(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<PunishmentAPI> { get<PunishmentDomainService>() }
     single { AuthInterceptor(get<punishments.service.config.AppConfig>().grpcAuthToken) }
     single { LoggingInterceptor() }
+    single { MetricsInterceptor(get()) }
     single { PunishmentGrpcService(get()) }
-    single { PunishmentGrpcServer(get(), get(), get(), get()) }
-    single { ExpirationScheduler(get(), get()) }
+    single { PunishmentGrpcServer(get(), get(), get(), get(), get()) }
+    single { ExpirationScheduler(get(), get(), get(), get()) }
 }
