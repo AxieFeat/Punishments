@@ -71,7 +71,7 @@ class ExposedPunishmentRepository(
                 it[punishmentId] = record.id
                 it[punishmentType] = record.type.name
                 it[punishmentStatus] = record.status.name
-                it[targetSelector] = selection.selector
+                it[targetSelector] = record.targetSelector ?: selection.selector
                 it[punishmentReasonId] = record.reasonId
                 it[punishmentReasonText] = record.reasonText
                 it[issuerActorId] = record.issuedBy.id

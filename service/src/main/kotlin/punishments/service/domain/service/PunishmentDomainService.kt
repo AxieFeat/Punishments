@@ -103,6 +103,7 @@ class PunishmentDomainService(
                         type = request.type,
                         status = request.type.initialStatus(),
                         targets = targets,
+                        targetSelector = request.selection.selector,
                         scope = scope,
                         reasonId = reasonId,
                         reasonText = reasonText,
@@ -124,7 +125,7 @@ class PunishmentDomainService(
                         )
                     )
                     invalidateAfterMutation(record)
-                    events.publish(record.createdEvent(request.selection.selector))
+                    events.publish(record.createdEvent())
                     metrics?.punishmentsCreated?.increment(record.targets.size.toDouble())
                     CreatePunishmentResult.Success(listOf(record.id))
                 } catch (e: ActiveRestrictionConflictException) {
@@ -353,27 +354,26 @@ class PunishmentDomainService(
             throw InvalidPunishmentRequestException("Punishment is no longer active")
         }
 
+        val revokedRecord = record.copy(
+            status = PunishmentStatus.REVOKED,
+            revokedAt = revokedAt,
+            revokedBy = actor
+        )
         invalidateAfterMutation(record)
         events.publish(
             PunishmentEvent.PunishmentRevoked(
                 metadata = EventMetadata(sourceServer = appConfig.instanceId),
-                punishmentId = record.id,
-                actor = actor,
-                reason = reason
+                punishment = revokedRecord
             )
         )
         metrics?.punishmentsRevoked?.increment()
         return RevokePunishmentResult.Success()
     }
 
-    private fun PunishmentRecord.createdEvent(selector: String?): PunishmentEvent.PunishmentCreated {
+    private fun PunishmentRecord.createdEvent(): PunishmentEvent.PunishmentCreated {
         return PunishmentEvent.PunishmentCreated(
             metadata = EventMetadata(sourceServer = appConfig.instanceId),
-            punishmentId = id,
-            type = type,
-            selection = TargetSelection(selector = selector, targets = targets),
-            reasonId = reasonId,
-            actor = issuedBy
+            punishment = this
         )
     }
 

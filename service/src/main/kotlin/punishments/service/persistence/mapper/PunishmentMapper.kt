@@ -24,6 +24,7 @@ object PunishmentMapper {
             type = PunishmentType.valueOf(row[PunishmentRecordsTable.punishmentType]),
             status = PunishmentStatus.valueOf(row[PunishmentRecordsTable.punishmentStatus]),
             targets = targets,
+            targetSelector = row[PunishmentRecordsTable.targetSelector],
             scope = scope,
             reasonId = row[PunishmentRecordsTable.punishmentReasonId],
             reasonText = row[PunishmentRecordsTable.punishmentReasonText],

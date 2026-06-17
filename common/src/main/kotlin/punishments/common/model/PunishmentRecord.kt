@@ -13,6 +13,7 @@ data class PunishmentRecord(
     val type: PunishmentType,
     val status: PunishmentStatus,
     val targets: List<PunishmentTarget>,
+    val targetSelector: String? = null,
     val scope: PunishmentScope = PunishmentScope(),
     val reasonId: String? = null,
     val reasonText: String? = null,

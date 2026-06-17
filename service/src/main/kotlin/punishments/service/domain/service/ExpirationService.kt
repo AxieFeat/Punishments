@@ -41,7 +41,7 @@ class ExpirationService(
                 events.publish(
                     PunishmentEvent.PunishmentExpired(
                         metadata = EventMetadata(sourceServer = appConfig.instanceId),
-                        punishmentId = record.id
+                        punishment = record
                     )
                 )
             }
