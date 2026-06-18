@@ -15,6 +15,7 @@ import punishments.service.metrics.CacheTier
 import punishments.service.metrics.PunishmentMetrics
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Two-policy cache for punishment reads.
@@ -58,7 +59,7 @@ class TieredPunishmentCache(
         broadcaster.start()
         scope.launch {
             while (isActive) {
-                delay(SIZE_REPORT_INTERVAL_MS)
+                delay(SIZE_REPORT_INTERVAL_MS.milliseconds)
                 metrics?.setL1Sizes(
                     strictDetails = strictDetails.estimatedSize(),
                     strictTargetActive = strictTargetActive.estimatedSize(),

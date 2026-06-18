@@ -85,7 +85,8 @@ object ValidationUtils {
 
     private fun normalizeTarget(target: PunishmentTarget): PunishmentTarget {
         val normalizedName = target.name?.trim()?.takeIf(String::isNotEmpty)
-        require(normalizedName != null && normalizedName.length <= TARGET_NAME_MAX_LENGTH) { "Target name is too long" }
+        require((normalizedName?.length ?: 0) <= TARGET_NAME_MAX_LENGTH) { "Target name is too long" }
+        require(target.id != null || normalizedName != null) { "Target must have either an id or a name" }
         return target.copy(name = normalizedName)
     }
 

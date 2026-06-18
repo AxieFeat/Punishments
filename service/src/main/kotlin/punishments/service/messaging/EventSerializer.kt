@@ -1,6 +1,5 @@
 package punishments.service.messaging
 
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import punishments.common.event.EventType
 import punishments.common.event.PunishmentEvent

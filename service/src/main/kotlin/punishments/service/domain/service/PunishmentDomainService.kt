@@ -1,7 +1,6 @@
 package punishments.service.domain.service
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
 import punishments.common.dto.request.CheckTargetRestrictionsRequest
 import punishments.common.dto.request.CreatePunishmentRequest
 import punishments.common.dto.request.GetActiveRestrictionsRequest
@@ -416,10 +415,7 @@ class PunishmentDomainService(
         encode: (Result) -> String,
         block: suspend () -> Result
     ): Result {
-        val normalizedRequestId = ValidationUtils.normalizeRequestId(requestId)
-        if (normalizedRequestId == null) {
-            return block()
-        }
+        val normalizedRequestId = ValidationUtils.normalizeRequestId(requestId) ?: return block()
 
         val requestHash = CacheKeys.run { json.encodeToString(request).sha256() }
         repository.findIdempotencyResult(operation, normalizedRequestId, requestHash)?.let { payload ->
