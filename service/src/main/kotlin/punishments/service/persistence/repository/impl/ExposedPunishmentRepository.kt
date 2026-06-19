@@ -153,9 +153,6 @@ class ExposedPunishmentRepository(
 
     override suspend fun search(query: String, page: Int, pageSize: Int): RepositoryPage<PunishmentSummaryRecord> {
         return db.transaction {
-            query.toUuidOrNull()?.let { punishmentId ->
-                return@transaction searchById(punishmentId, page)
-            }
             val matchedIds = searchTargetPunishmentIds(query)
             val searchOp = searchFilter(query, matchedIds)
             val dbQuery = PunishmentRecordsTable.selectAll().where { searchOp }
@@ -168,20 +165,6 @@ class ExposedPunishmentRepository(
             val items = rows.map { row -> loadSummary(row, targetsByPunishmentId) }
             RepositoryPage(items, total)
         }
-    }
-
-    private fun searchById(id: UUID, page: Int): RepositoryPage<PunishmentSummaryRecord> {
-        val row = PunishmentRecordsTable.selectAll()
-            .where { PunishmentRecordsTable.punishmentId eq id }
-            .firstOrNull()
-            ?: return RepositoryPage(emptyList(), 0)
-
-        if (page > 0) {
-            return RepositoryPage(emptyList(), 1)
-        }
-
-        val targetsByPunishmentId = loadTargets(listOf(row[PunishmentRecordsTable.punishmentId]))
-        return RepositoryPage(listOf(loadSummary(row, targetsByPunishmentId)), 1)
     }
 
     override suspend fun revoke(
@@ -252,9 +235,10 @@ class ExposedPunishmentRepository(
         }
 
         return db.transaction {
-            val targetKeys = targets.map(TargetKeys::normalized).distinct()
+            val targetFilter = targets.mapNotNull(::activeRestrictionTargetFilter).orAll()
+                ?: return@transaction emptyList()
             val filters = buildList {
-                add(PunishmentActiveRestrictionsTable.normalizedTargetKey inList targetKeys)
+                add(targetFilter)
                 add(activeRestrictionAt(nowEpochMs))
                 if (types.isNotEmpty()) {
                     add(PunishmentActiveRestrictionsTable.punishmentType inList types.map(PunishmentType::name))
@@ -492,8 +476,13 @@ class ExposedPunishmentRepository(
 
     private fun searchTargetPunishmentIds(query: String): List<UUID> {
         val pattern = "%${query.sanitizeLike()}%"
+        val targetFilter = buildList {
+            query.toUuidOrNull()?.let { uuid -> add(PunishmentTargetsTable.targetId eq uuid) }
+            add(PunishmentTargetsTable.targetName ilike pattern)
+        }.orAll() ?: return emptyList()
+
         return PunishmentTargetsTable.select(PunishmentTargetsTable.punishmentId)
-            .where { PunishmentTargetsTable.targetName ilike pattern }
+            .where { targetFilter }
             .map { row -> row[PunishmentTargetsTable.punishmentId] }
             .distinct()
     }
@@ -537,8 +526,21 @@ class ExposedPunishmentRepository(
             target.id?.let { id -> add(PunishmentTargetsTable.targetId eq id) }
             target.name?.takeIf(String::isNotBlank)?.let { name ->
                 add(
-                    (PunishmentTargetsTable.targetName eq name) and
+                    (PunishmentTargetsTable.targetName ilike name.sanitizeLike()) and
                         (PunishmentTargetsTable.targetType eq target.targetType.name)
+                )
+            }
+        }
+        return filters.orAll()
+    }
+
+    private fun activeRestrictionTargetFilter(target: PunishmentTarget): Op<Boolean>? {
+        val filters = buildList {
+            target.id?.let { id -> add(PunishmentActiveRestrictionsTable.targetId eq id) }
+            target.name?.takeIf(String::isNotBlank)?.let { name ->
+                add(
+                    (PunishmentActiveRestrictionsTable.targetName ilike name.sanitizeLike()) and
+                        (PunishmentActiveRestrictionsTable.targetType eq target.targetType.name)
                 )
             }
         }

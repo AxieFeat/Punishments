@@ -52,7 +52,6 @@ import punishments.service.persistence.repository.ActiveRestrictionRecord
 import punishments.service.persistence.repository.impl.ActiveRestrictionConflictException
 import punishments.service.persistence.repository.PunishmentRepository
 import punishments.service.persistence.repository.RepositoryPage
-import punishments.common.util.TargetKeys
 import punishments.common.util.ValidationUtils
 import java.util.UUID
 import kotlin.math.ceil
@@ -394,7 +393,14 @@ class PunishmentDomainService(
 
     private fun targetRevisionKeys(targets: List<PunishmentTarget>): List<String> {
         return targets
-            .map { target -> CacheKeys.targetRevision(TargetKeys.normalized(target)) }
+            .flatMap { target ->
+                buildList {
+                    target.id?.let { id -> add(CacheKeys.targetIdRevision(id)) }
+                    target.name?.takeIf(String::isNotBlank)?.let { name ->
+                        add(CacheKeys.targetNameRevision(target.targetType, name))
+                    }
+                }
+            }
             .distinct()
     }
 

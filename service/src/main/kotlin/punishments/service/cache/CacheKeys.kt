@@ -2,10 +2,13 @@ package punishments.service.cache
 
 import punishments.common.dto.request.GetPunishmentsRequest
 import punishments.common.model.PunishmentTarget
+import punishments.common.model.TargetKind
 import punishments.common.model.PunishmentType
 import punishments.common.util.TargetKeys
 import punishments.common.util.ValidationUtils
 import java.security.MessageDigest
+import java.util.Locale
+import java.util.UUID
 
 object CacheKeys {
 
@@ -29,6 +32,12 @@ object CacheKeys {
     }
 
     fun targetRevision(targetKey: String): String = "$REV_PREFIX:target:$targetKey"
+    fun targetIdRevision(id: UUID): String = "$REV_PREFIX:target-id:${id.toString().lowercase(Locale.ROOT)}"
+    fun targetNameRevision(targetType: TargetKind, name: String): String {
+        val normalizedType = targetType.name.uppercase(Locale.ROOT)
+        val normalizedName = name.trim().lowercase(Locale.ROOT)
+        return "$REV_PREFIX:target-name:$normalizedType:$normalizedName"
+    }
 
     fun list(request: GetPunishmentsRequest): String {
         return "$PREFIX:list:t${request.type?.name ?: "ALL"}:s${request.status?.name ?: "ALL"}:" +

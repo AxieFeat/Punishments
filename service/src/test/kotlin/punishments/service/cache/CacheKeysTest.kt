@@ -59,4 +59,22 @@ class CacheKeysTest {
     fun `records revision key is stable`() {
         assertEquals("punishment-service:revision:records", CacheKeys.recordsRevision())
     }
+
+    @Test
+    fun `target id revision is independent from target kind`() {
+        val id = UUID.fromString("E7E09F79-3E0F-4DF7-92D9-83AE9F08A6E2")
+
+        assertEquals(
+            "punishment-service:revision:target-id:e7e09f79-3e0f-4df7-92d9-83ae9f08a6e2",
+            CacheKeys.targetIdRevision(id)
+        )
+    }
+
+    @Test
+    fun `target name revision normalizes case and whitespace`() {
+        assertEquals(
+            "punishment-service:revision:target-name:PLAYER:steve",
+            CacheKeys.targetNameRevision(TargetKind.PLAYER, "  Steve  ")
+        )
+    }
 }

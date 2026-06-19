@@ -133,3 +133,15 @@ CREATE INDEX IF NOT EXISTS idx_punishment_active_restrictions_punishment
 
 CREATE INDEX IF NOT EXISTS idx_punishment_idempotency_requests_created
     ON punishment_idempotency_requests (created_at_epoch_ms);
+
+CREATE INDEX IF NOT EXISTS idx_punishment_active_restrictions_target_id
+    ON punishment_active_restrictions (target_id)
+    WHERE target_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_punishment_active_restrictions_target_kind_name
+    ON punishment_active_restrictions (target_type, target_name)
+    WHERE target_name IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_punishment_active_restrictions_target_name_trgm
+    ON punishment_active_restrictions USING GIN (target_name gin_trgm_ops)
+    WHERE target_name IS NOT NULL;
