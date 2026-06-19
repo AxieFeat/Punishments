@@ -17,13 +17,14 @@ object CacheKeys {
 
     fun punishment(id: String): String = "$PREFIX:punishment:$id"
     fun punishmentRevision(id: String): String = "$REV_PREFIX:punishment:$id"
+    fun recordsRevision(): String = "$REV_PREFIX:records"
 
     fun activeRestrictions(
         targets: List<PunishmentTarget>,
         types: Set<PunishmentType>,
         restrictionKeys: Set<String>
     ): String {
-        return "$PREFIX:active:t${targetsHash(targets)}:types${types.map(PunishmentType::name).sorted().joinToString(",").sha256()}:" +
+        return "$PREFIX:active:v2:t${targetsHash(targets)}:types${types.map(PunishmentType::name).sorted().joinToString(",").sha256()}:" +
             "keys${restrictionKeys.sorted().joinToString(",").sha256()}"
     }
 
@@ -44,7 +45,7 @@ object CacheKeys {
 
     fun catalog(version: String?): String = "$PREFIX:catalog:${version ?: "default"}"
 
-    fun boundedReadPrefixes(): List<String> = listOf(
+    fun mutableReadPrefixes(): List<String> = listOf(
         "$PREFIX:list:",
         "$PREFIX:targets:",
         "$PREFIX:search:"

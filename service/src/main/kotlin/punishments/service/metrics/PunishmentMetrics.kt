@@ -34,8 +34,8 @@ class PunishmentMetrics(private val registry: MeterRegistry) {
 
     private val strictDetailsSize = AtomicLong()
     private val strictTargetActiveSize = AtomicLong()
-    private val boundedListingsSize = AtomicLong()
-    private val boundedSearchSize = AtomicLong()
+    private val listingsSize = AtomicLong()
+    private val searchSize = AtomicLong()
     private val catalogSize = AtomicLong()
     private val activeRestrictions = AtomicLong()
     private val cacheGeneration = AtomicLong()
@@ -43,8 +43,10 @@ class PunishmentMetrics(private val registry: MeterRegistry) {
     init {
         registry.gauge("punishments.cache.l1.strict_details.size", strictDetailsSize) { it.toDouble() }
         registry.gauge("punishments.cache.l1.strict_target_active.size", strictTargetActiveSize) { it.toDouble() }
-        registry.gauge("punishments.cache.l1.bounded_listings.size", boundedListingsSize) { it.toDouble() }
-        registry.gauge("punishments.cache.l1.bounded_search.size", boundedSearchSize) { it.toDouble() }
+        registry.gauge("punishments.cache.l1.listings.size", listingsSize) { it.toDouble() }
+        registry.gauge("punishments.cache.l1.search.size", searchSize) { it.toDouble() }
+        registry.gauge("punishments.cache.l1.bounded_listings.size", listingsSize) { it.toDouble() }
+        registry.gauge("punishments.cache.l1.bounded_search.size", searchSize) { it.toDouble() }
         registry.gauge("punishments.cache.l1.catalog.size", catalogSize) { it.toDouble() }
         registry.gauge("punishments.cache.generation", cacheGeneration) { it.toDouble() }
         registry.gauge("punishments.active_restrictions", activeRestrictions) { it.toDouble() }
@@ -53,14 +55,14 @@ class PunishmentMetrics(private val registry: MeterRegistry) {
     fun setL1Sizes(
         strictDetails: Long,
         strictTargetActive: Long,
-        boundedListings: Long,
-        boundedSearch: Long,
+        listings: Long,
+        search: Long,
         catalog: Long
     ) {
         strictDetailsSize.set(strictDetails)
         strictTargetActiveSize.set(strictTargetActive)
-        boundedListingsSize.set(boundedListings)
-        boundedSearchSize.set(boundedSearch)
+        listingsSize.set(listings)
+        searchSize.set(search)
         catalogSize.set(catalog)
     }
 
@@ -130,8 +132,8 @@ class PunishmentMetrics(private val registry: MeterRegistry) {
 enum class CacheFamily(val metricName: String) {
     STRICT_DETAILS("strict_details"),
     STRICT_TARGET_ACTIVE("strict_target_active"),
-    BOUNDED_LISTINGS("bounded_listings"),
-    BOUNDED_SEARCH("bounded_search"),
+    LISTINGS("listings"),
+    SEARCH("search"),
     CATALOG("catalog")
 }
 

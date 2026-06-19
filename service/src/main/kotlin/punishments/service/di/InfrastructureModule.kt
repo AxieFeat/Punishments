@@ -16,6 +16,6 @@ val infrastructureModule = module {
     single { RedisCache(get()) }
     single { CacheInvalidationBroadcaster(get(), get()) }
     single { PunishmentMetrics(get()) }
-    single { TieredPunishmentCache(get(), get(), get(), get()) }
+    single { TieredPunishmentCache(get(), get(), get(), get(), get()) }
     single { RedisEventPublisher(get(), get()) }
 }

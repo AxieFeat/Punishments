@@ -53,7 +53,7 @@ class ExpirationService(
 
         if (total > 0) {
             cache.invalidateTargets(affectedTargetRevisionKeys.toList())
-            cache.invalidateBoundedReads()
+            cache.invalidateMutableReads()
             metrics?.punishmentsExpired?.increment(total.toDouble())
             metrics?.setActiveRestrictions(repository.countActiveRestrictions(System.currentTimeMillis()))
             logger.info("Expired {} punishments", total)

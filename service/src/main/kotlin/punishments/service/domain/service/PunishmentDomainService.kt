@@ -62,9 +62,9 @@ import kotlin.time.Instant
  * Application service that separates command, query and enforcement semantics on top
  * of one public API contract.
  *
- * Commands use DB transactions and idempotency for retry safety. Enforcement reads
- * use strict cache policies with DB fallback, while list/search/catalog APIs may use
- * bounded-stale cache entries for operator-facing UI workloads.
+ * Commands use DB transactions and idempotency for retry safety. Mutable reads use
+ * revisioned cache entries with DB fallback, so list/search/enforcement paths do
+ * not serve stale active punishments after a write.
  */
 class PunishmentDomainService(
     private val repository: PunishmentRepository,
@@ -210,7 +210,7 @@ class PunishmentDomainService(
             pageSize = normalized.pageSize
         ).toResponse(normalized.page, normalized.pageSize)
         cache.putListing(cacheKey, json.encodeToString(page))
-        metrics?.cacheTierHit(CacheFamily.BOUNDED_LISTINGS, CacheTier.L3)
+        metrics?.cacheTierHit(CacheFamily.LISTINGS, CacheTier.L3)
         return page
     }
 
@@ -238,7 +238,7 @@ class PunishmentDomainService(
             pageSize = pageSize
         ).toResponse(page, pageSize)
         cache.putListing(cacheKey, json.encodeToString(response))
-        metrics?.cacheTierHit(CacheFamily.BOUNDED_LISTINGS, CacheTier.L3)
+        metrics?.cacheTierHit(CacheFamily.LISTINGS, CacheTier.L3)
         return response
     }
 
@@ -259,7 +259,7 @@ class PunishmentDomainService(
 
         val response = repository.search(query, page, pageSize).toResponse(page, pageSize)
         cache.putSearch(cacheKey, json.encodeToString(response))
-        metrics?.cacheTierHit(CacheFamily.BOUNDED_SEARCH, CacheTier.L3)
+        metrics?.cacheTierHit(CacheFamily.SEARCH, CacheTier.L3)
         return response
     }
 
@@ -299,8 +299,11 @@ class PunishmentDomainService(
             nowEpochMs = System.currentTimeMillis()
         ).toRestrictionsResponse()
         // Enforcement never treats cache/Redis failure as "not restricted"; the DB is
-        // authoritative and the explicit response is cached only after it is loaded.
-        cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        // authoritative. Only positive restrictions are cached, so a missed
+        // invalidation cannot preserve an unsafe "allowed" response.
+        if (response.restricted) {
+            cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        }
         metrics?.cacheTierHit(CacheFamily.STRICT_TARGET_ACTIVE, CacheTier.L3)
         if (response.restricted) metrics?.enforcementRestricted?.increment()
         return response
@@ -324,7 +327,9 @@ class PunishmentDomainService(
             restrictionKeys = emptySet(),
             nowEpochMs = System.currentTimeMillis()
         ).toRestrictionsResponse()
-        cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        if (response.restricted) {
+            cache.putStrictTargetActive(cacheKey, revisionKeys, json.encodeToString(response))
+        }
         metrics?.cacheTierHit(CacheFamily.STRICT_TARGET_ACTIVE, CacheTier.L3)
         return response
     }
@@ -379,7 +384,7 @@ class PunishmentDomainService(
     private suspend fun invalidateAfterMutation(record: PunishmentRecord) {
         cache.invalidatePunishment(record.id.toString())
         cache.invalidateTargets(targetRevisionKeys(record.targets))
-        cache.invalidateBoundedReads()
+        cache.invalidateMutableReads()
         refreshActiveRestrictionGauge()
     }
 

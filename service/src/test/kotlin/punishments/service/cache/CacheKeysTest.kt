@@ -54,4 +54,9 @@ class CacheKeysTest {
             CacheKeys.search("  ban   appeal  ", page = 0, pageSize = 50)
         )
     }
+
+    @Test
+    fun `records revision key is stable`() {
+        assertEquals("punishment-service:revision:records", CacheKeys.recordsRevision())
+    }
 }
